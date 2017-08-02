@@ -1,12 +1,15 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"math/rand"
 	"net/http"
 	"time"
+
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/clientcmd/api"
+	clientcmdlatest "k8s.io/client-go/tools/clientcmd/api/latest"
 
 	oidc "github.com/coreos/go-oidc"
 
@@ -48,10 +51,10 @@ func main() {
 		Scopes:       []string{oidc.ScopeOpenID, "profile", "email", "org.cilogon.userinfo", "edu.uiuc.ncsa.myproxy.getcert"},
 	}
 
-	oidcConfig := &oidc.Config{
-		ClientID: viper.GetString("client_id"),
-	}
-	verifier := provider.Verifier(oidcConfig)
+	// oidcConfig := &oidc.Config{
+	// 	ClientID: viper.GetString("client_id"),
+	// }
+	// verifier := provider.Verifier(oidcConfig)
 
 	state := randStringBytes(36)
 
@@ -60,51 +63,62 @@ func main() {
 	})
 
 	http.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
+
+		if r.Method != "GET" {
+			return
+		}
+
 		if r.URL.Query().Get("state") != state {
 			http.Error(w, "state did not match", http.StatusBadRequest)
 			return
 		}
 
-		oauth2Token, err := config.ExchangeSecure(ctx, r.URL.Query().Get("code"))
+		oauth2Token, err := config.Exchange(ctx, r.URL.Query().Get("code"))
 		if err != nil {
 			http.Error(w, "Failed to exchange token: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		log.Printf("%v", oauth2Token)
-		log.Printf("%v", oauth2Token.AccessToken)
-
-		rawIDToken, ok := oauth2Token.Extra("id_token").(string)
-		if !ok {
-			http.Error(w, "No id_token field in oauth2 token.", http.StatusInternalServerError)
-			return
-		}
-
-		log.Printf("%v", rawIDToken)
-
-		idToken, err := verifier.Verify(ctx, rawIDToken)
+		userInfo, err := provider.UserInfo(ctx, oauth2.StaticTokenSource(oauth2Token))
 		if err != nil {
-			http.Error(w, "Failed to verify ID Token: "+err.Error(), http.StatusInternalServerError)
+			http.Error(w, "Failed to get userinfo: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		// oauth2Token.AccessToken = "*REDACTED*"
-
-		resp := struct {
-			OAuth2Token   *oauth2.Token
-			IDTokenClaims *json.RawMessage // ID Token payload is just JSON.
-		}{oauth2Token, new(json.RawMessage)}
-
-		if err = idToken.Claims(&resp.IDTokenClaims); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+		co := api.Config{
+			APIVersion: "v1",
+			Clusters: map[string]*api.Cluster{
+				"calit2": &api.Cluster{
+					CertificateAuthorityData: []byte(viper.GetString("certificate_authority_data")),
+					Server: viper.GetString("kubernetes_server"),
+				},
+			},
+			Contexts: map[string]*api.Context{
+				"calit2": &api.Context{
+					Cluster:  "calit2",
+					AuthInfo: userInfo.Subject,
+				},
+			},
+			AuthInfos: map[string]*api.AuthInfo{userInfo.Subject: {
+				AuthProvider: &api.AuthProviderConfig{
+					Name: "oidc",
+					Config: map[string]string{
+						"id-token":       oauth2Token.Extra("id_token").(string),
+						"client-id":      viper.GetString("client_id"),
+						"idp-issuer-url": "https://cilogon.org",
+					},
+				},
+			}},
+			CurrentContext: "calit2",
 		}
-		data, err := json.MarshalIndent(resp, "", "    ")
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+
+		data, err := runtime.Encode(clientcmdlatest.Codec, &co)
+		if err == nil {
+			w.Write(data)
+		} else {
+			w.Write([]byte(err.Error()))
 		}
-		w.Write(data)
+		return
 
 	})
 
