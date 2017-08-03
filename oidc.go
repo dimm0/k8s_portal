@@ -11,6 +11,9 @@ import (
 	"k8s.io/client-go/tools/clientcmd/api"
 	clientcmdlatest "k8s.io/client-go/tools/clientcmd/api/latest"
 
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+
 	oidc "github.com/coreos/go-oidc"
 
 	"github.com/spf13/viper"
@@ -47,7 +50,7 @@ func main() {
 		ClientID:     viper.GetString("client_id"),
 		ClientSecret: viper.GetString("client_secret"),
 		Endpoint:     provider.Endpoint(),
-		RedirectURL:  "http://localhost/callback",
+		RedirectURL:  viper.GetString("redirect_url"),
 		Scopes:       []string{oidc.ScopeOpenID, "profile", "email", "org.cilogon.userinfo", "edu.uiuc.ncsa.myproxy.getcert"},
 	}
 
@@ -58,11 +61,21 @@ func main() {
 
 	state := randStringBytes(36)
 
+	k8sconfig, err := rest.InClusterConfig()
+	if err != nil {
+		// panic(err.Error())
+	}
+
+	clientset, err := kubernetes.NewForConfig(k8sconfig)
+	if err != nil {
+		// panic(err.Error())
+	}
+
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, config.AuthCodeURL(state), http.StatusFound)
 	})
 
-	http.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/oidc-auth/callback", func(w http.ResponseWriter, r *http.Request) {
 
 		if r.Method != "GET" {
 			return
@@ -118,10 +131,13 @@ func main() {
 		} else {
 			w.Write([]byte(err.Error()))
 		}
+
+		binding, err := clientset.Rbac().ClusterRoleBindings().Get("admin", nil)
+
 		return
 
 	})
 
 	log.Printf("listening on http://%s/", "127.0.0.1")
-	log.Fatal(http.ListenAndServe("127.0.0.1:80", nil))
+	log.Fatal(http.ListenAndServe(":80", nil))
 }

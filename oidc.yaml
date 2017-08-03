@@ -1,0 +1,33 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+apiVersion: extensions/v1beta1
+metadata:
+  labels:
+    k8s-app: oidc-auth
+  name: oidc-auth
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        k8s-app: oidc-auth
+    spec:
+      imagePullSecrets:
+        - name: gcr-json-key
+      containers:
+      - name: oidc-auth
+        image: us.gcr.io/prp-k8s/oidc-auth:latest
+        imagePullPolicy: Always
+---
+kind: Service
+apiVersion: v1
+metadata:
+  labels:
+    k8s-app: oidc-auth
+  name: oidc-auth
+spec:
+  ports:
+  - port: 80
+    targetPort: 80
+  selector:
+    k8s-app: oidc-auth
