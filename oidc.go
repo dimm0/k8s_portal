@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"log"
 	"math/rand"
 	"net/http"
@@ -42,7 +43,7 @@ func main() {
 		panic(fmt.Errorf("fatal error config file: %s", err))
 	}
 
-	provider, err := oidc.NewProvider(ctx, "https://cilogon.org")
+	provider, err := oidc.NewProvider(ctx, "https://test.cilogon.org")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -63,15 +64,23 @@ func main() {
 
 	k8sconfig, err := rest.InClusterConfig()
 	if err != nil {
-		// panic(err.Error())
+		log.Fatal("Failed to do inclusterconfig: " + err.Error())
+		return
 	}
 
 	clientset, err := kubernetes.NewForConfig(k8sconfig)
 	if err != nil {
-		// panic(err.Error())
+		log.Fatal("Failed to do inclusterconfig new client: " + err.Error())
 	}
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	// clusterinfo, err := clientset.CoreV1().ConfigMaps(metav1.NamespacePublic).Get("cluster-info", metav1.GetOptions{})
+	// if err != nil {
+	// 	log.Fatal("Failed to get clusterinfo: " + err.Error())
+	// }
+
+	fmt.Printf("Clusterinfo: %v", clientset)
+
+	http.HandleFunc("/oidc-auth", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, config.AuthCodeURL(state), http.StatusFound)
 	})
 
@@ -98,11 +107,17 @@ func main() {
 			return
 		}
 
+		dat, err := ioutil.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/ca.crt")
+		if err != nil {
+			http.Error(w, "Failed to get ca cert: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
 		co := api.Config{
 			APIVersion: "v1",
 			Clusters: map[string]*api.Cluster{
 				"calit2": &api.Cluster{
-					CertificateAuthorityData: []byte(viper.GetString("certificate_authority_data")),
+					CertificateAuthorityData: dat,
 					Server: viper.GetString("kubernetes_server"),
 				},
 			},
@@ -131,8 +146,6 @@ func main() {
 		} else {
 			w.Write([]byte(err.Error()))
 		}
-
-		binding, err := clientset.Rbac().ClusterRoleBindings().Get("admin", nil)
 
 		return
 
