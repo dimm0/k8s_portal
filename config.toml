@@ -1,0 +1,4 @@
+client_id=""
+client_secret=""
+kubernetes_server="https://67.58.53.146:6443"
+redirect_url="http://k8s.optiputer.net/oidc-auth/callback"
