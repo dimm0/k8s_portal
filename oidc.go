@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -8,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	"k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/clientcmd/api"
 	clientcmdlatest "k8s.io/client-go/tools/clientcmd/api/latest"
@@ -20,9 +22,20 @@ import (
 	"github.com/spf13/viper"
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+type UserPatchJson struct {
+	Op    string `json:"op"`
+	Path  string `json:"path"`
+	Value struct {
+		Kind     string `json:"kind"`
+		Name     string `json:"name"`
+		ApiGroup string `json:"apiGroup"`
+	} `json:"value"`
+}
 
 func randStringBytes(n int) string {
 	b := make([]byte, n)
@@ -107,6 +120,9 @@ func main() {
 			return
 		}
 
+		// log.Printf("Token %v", oauth2Token)
+		// log.Printf("UserInfo %v", userInfo.Claims("REMOTE_USER"))
+
 		dat, err := ioutil.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/ca.crt")
 		if err != nil {
 			http.Error(w, "Failed to get ca cert: "+err.Error(), http.StatusInternalServerError)
@@ -133,12 +149,45 @@ func main() {
 					Config: map[string]string{
 						"id-token":       oauth2Token.Extra("id_token").(string),
 						"client-id":      viper.GetString("client_id"),
-						"idp-issuer-url": "https://cilogon.org",
+						"idp-issuer-url": viper.GetString("issuer"),
 					},
 				},
 			}},
 			CurrentContext: "calit2",
 		}
+
+		userID := viper.GetString("issuer") + "#" + userInfo.Subject
+
+		found := false
+		binding, err := clientset.Rbac().ClusterRoleBindings().Get("cilogon-admin", v1.GetOptions{})
+		if err == nil {
+			for _, subj := range binding.Subjects {
+				if subj.Name == userID {
+					found = true
+				}
+			}
+		}
+
+		if !found {
+			newUser := UserPatchJson{}
+			newUser.Op = "add"
+			newUser.Path = "/subjects/-"
+			newUser.Value.Kind = "User"
+			newUser.Value.Name = userID
+			newUser.Value.ApiGroup = "rbac.authorization.k8s.io"
+			userStr, _ := json.Marshal([]UserPatchJson{newUser})
+			log.Printf("Doing patch %s", userStr)
+
+			patchres, err := clientset.Rbac().ClusterRoleBindings().Patch("cilogon-admin", types.JSONPatchType, userStr, "")
+			if err != nil {
+				log.Printf("Error doing patch %s", err.Error())
+			} else {
+				log.Printf("Success doing patch %v", patchres)
+			}
+		}
+
+		w.Header().Add("Content-Disposition", "attachment; filename=\"config\"")
+		w.Header().Add("Content-Type", "application/yaml")
 
 		data, err := runtime.Encode(clientcmdlatest.Codec, &co)
 		if err == nil {
