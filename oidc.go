@@ -3,10 +3,12 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"io/ioutil"
 	"log"
 	"math/rand"
 	"net/http"
+	"sync"
 	"time"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -26,6 +28,9 @@ import (
 )
 
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+var keys = map[string][]byte{}
+var lock = sync.RWMutex{}
 
 type UserPatchJson struct {
 	Op    string `json:"op"`
@@ -97,6 +102,24 @@ func main() {
 		http.Redirect(w, r, config.AuthCodeURL(state), http.StatusFound)
 	})
 
+	http.HandleFunc("/oidc-auth/getConfig", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			return
+		}
+
+		id := r.URL.Query().Get("id")
+
+		configFile, ok := keys[id]
+		if ok {
+			w.Header().Add("Content-Disposition", "attachment; filename=\"config\"")
+			w.Header().Add("Content-Type", "application/yaml")
+			w.Write(configFile)
+			delete(keys, id)
+		} else {
+			http.Error(w, "Not found", http.StatusNotFound)
+		}
+	})
+
 	http.HandleFunc("/oidc-auth/callback", func(w http.ResponseWriter, r *http.Request) {
 
 		if r.Method != "GET" {
@@ -119,9 +142,6 @@ func main() {
 			http.Error(w, "Failed to get userinfo: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
-
-		// log.Printf("Token %v", oauth2Token)
-		// log.Printf("UserInfo %v", userInfo.Claims("REMOTE_USER"))
 
 		dat, err := ioutil.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/ca.crt")
 		if err != nil {
@@ -186,12 +206,24 @@ func main() {
 			}
 		}
 
-		w.Header().Add("Content-Disposition", "attachment; filename=\"config\"")
-		w.Header().Add("Content-Type", "application/yaml")
-
 		data, err := runtime.Encode(clientcmdlatest.Codec, &co)
 		if err == nil {
-			w.Write(data)
+			newId := randStringBytes(16)
+			lock.Lock()
+			defer lock.Unlock()
+
+			keys[newId] = data
+
+			t, err := template.ParseFiles("authenticated.tmpl")
+			if err != nil {
+				w.Write([]byte(err.Error()))
+			} else {
+				err = t.Execute(w, struct{ ID string }{ID: newId})
+				if err != nil {
+					w.Write([]byte(err.Error()))
+				}
+			}
+
 		} else {
 			w.Write([]byte(err.Error()))
 		}
