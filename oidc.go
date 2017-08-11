@@ -213,6 +213,11 @@ func main() {
 			defer lock.Unlock()
 
 			keys[newId] = data
+			cleanKeyTimer := time.NewTimer(time.Second * 5)
+			go func() {
+				<-cleanKeyTimer.C
+				delete(keys, newId)
+			}()
 
 			t, err := template.ParseFiles("authenticated.tmpl")
 			if err != nil {
