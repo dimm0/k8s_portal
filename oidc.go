@@ -198,7 +198,7 @@ func main() {
 			userStr, _ := json.Marshal([]UserPatchJson{newUser})
 			log.Printf("Doing patch %s", userStr)
 
-			patchres, err := clientset.Rbac().ClusterRoleBindings().Patch("cilogon-admin", types.JSONPatchType, userStr, "")
+			patchres, err := clientset.Rbac().RoleBindings("default").Patch("cilogon-admin", types.JSONPatchType, userStr, "")
 			if err != nil {
 				log.Printf("Error doing patch %s", err.Error())
 			} else {
