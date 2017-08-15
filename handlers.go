@@ -203,7 +203,7 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 		userID := viper.GetString("issuer") + "#" + userInfo.Subject
 
 		found := false
-		binding, err := clientset.Rbac().RoleBindings().Get("cilogon", v1.GetOptions{})
+		binding, err := clientset.Rbac().RoleBindings("default").Get("cilogon", v1.GetOptions{})
 		if err == nil {
 			for _, subj := range binding.Subjects {
 				if subj.Name == userID {
