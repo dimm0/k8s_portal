@@ -20,9 +20,6 @@ import (
 	"k8s.io/client-go/tools/clientcmd/api"
 )
 
-// var store = sessions.NewFilesystemStore("/sessions", []byte(viper.GetString("sessionAuthKey")), []byte(viper.GetString("sessionEncKey")))
-var store = sessions.NewCookieStore([]byte(viper.GetString("sessionAuthKey")))
-
 //keep config file to be requested later by JS
 var keys = map[string][]byte{}
 
@@ -159,7 +156,7 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 
 	switch stateVal {
 	case "auth":
-		session.Values["userid"] = userInfo.Subject
+		session.Values["userid"] = userInfo.Email
 		if e := session.Save(r, w); e != nil {
 			http.Error(w, "Failed to save session: "+e.Error(), http.StatusInternalServerError)
 			return
@@ -173,6 +170,7 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		log.Printf("Got token: %v", oauth2Token)
 		co := api.Config{
 			APIVersion: "v1",
 			Clusters: map[string]*api.Cluster{
