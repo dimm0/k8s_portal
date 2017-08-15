@@ -126,8 +126,6 @@ func main() {
 	http.HandleFunc("/logout", LogoutHandler)
 
 	log.Printf("listening on http://%s/", "127.0.0.1")
-	log.Printf("Auth key %s %v", viper.GetString("sessionAuthKey"), len([]byte(viper.GetString("sessionAuthKey"))))
-	log.Printf("sess key %s %v", viper.GetString("sessionEncKey"), len([]byte(viper.GetString("sessionEncKey"))))
 
 	log.Fatal(http.ListenAndServe(":80", nil))
 }
