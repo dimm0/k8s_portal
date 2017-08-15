@@ -192,7 +192,9 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 					Name: "oidc",
 					Config: map[string]string{
 						"id-token":       oauth2Token.Extra("id_token").(string),
+						"refresh-token":  oauth2Token.RefreshToken,
 						"client-id":      viper.GetString("client_id"),
+						"client-secret":  viper.GetString("client_secret"),
 						"idp-issuer-url": viper.GetString("issuer"),
 					},
 				},
