@@ -1,0 +1,11 @@
+{{define "body"}}
+<div class="container" style="padding-top: 16em">
+  <center><h3>Please put the downloaded 'config' file into your ~/.kube/ folder</h3></center>
+</div>
+{{end}}
+
+{{define "page_js"}}
+  <script type="text/JavaScript">
+    window.location.href="getConfig?id={{.ConfigId}}";
+  </script>
+{{end}}

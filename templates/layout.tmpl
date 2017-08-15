@@ -1,0 +1,84 @@
+<!doctype html>
+
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PRP K8S</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta/css/bootstrap.min.css" integrity="sha384-/Y6pD6FV/Vv2HJnA6t+vslU6fwYXjCFtcEpHbNJ0lyAFsXTsjBbfaDjzALeQsN6M" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vex-js/3.1.1/css/vex.min.css" integrity="sha256-vT3Ea/TUa31pD4JeYO4GMsAKW9PlqG9l8d33SLPIKaw=" crossorigin="anonymous" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vex-js/3.1.1/css/vex-theme-os.min.css" integrity="sha256-xK3QvNOCJ17izA2HaEC1oy9dKdEm8dbgTGZksqSllPQ=" crossorigin="anonymous" />
+  {{template "page_css" .}}
+
+</head>
+
+<body>
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+      <a class="navbar-brand" href="#">PRP K8S Home</a>
+      <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarResponsive" aria-controls="navbarResponsive" aria-expanded="false" aria-label="Toggle navigation">
+          <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarResponsive">
+          <ul class="navbar-nav ml-auto">
+              <li class="nav-item active">
+                  <a class="nav-link" href="#">Home <span class="sr-only">(current)</span></a>
+              </li>
+              {{if not .User.UserID}}
+              <li class="nav-item">
+                <a class="nav-link" id="loginbtn" href="auth">Login</a>
+              </li>
+              {{end}}
+              {{if .User.UserID}}
+              <li class="nav-item">
+                  <a class="nav-link">About</a>
+              </li>
+              <li class="nav-item">
+                  <a class="nav-link">Services</a>
+              </li>
+              <li class="nav-item">
+                  <a class="nav-link" href="authConfig">Get config</a>
+              </li>
+      				<li class="nav-item">
+                <button type="button" class="btn btn-default btn-sm">
+                  <span class="glyphicon glyphicon-log-out"></span> Log out {{.User.UserID}}
+                </button>
+              </li>
+              {{end}}
+          </ul>
+      </div>
+  </nav>
+
+  {{template "body" .}}
+
+  <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.11.0/umd/popper.min.js" integrity="sha384-b/U6ypiBEHpOf/4+1nzFpr53nxSS+GLCkfwBdFNTxtclqqenISfwAzpKaMNFNmj4" crossorigin="anonymous"></script>
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta/js/bootstrap.min.js" integrity="sha384-h0AbiXch4ZDo7tp9hKZ4TsHbi047NrKGLO3SEJAg45jXxnGIfYzk4Si90RDIqNm1" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/vex-js/3.1.1/js/vex.combined.min.js" integrity="sha256-H9ekWOkL3LfgvoPQ7IUVEpaLPbPH05vETReIKbUJWUg=" crossorigin="anonymous"></script>
+
+  <script type="text/javascript">
+    $(document).ready(function () {
+      vex.defaultOptions.className = 'vex-theme-os';
+      // $("#loginbtn").click(function() {
+      //   window.location.href = "";
+      // });
+
+      // $("#logoutbtn").click(function() {
+      //   logout();
+      // });
+
+    });
+  </script>
+
+  {{template "page_js" .}}
+</body>
+
+</html>
+
+{{define "page_js"}}
+
+{{end}}
+
+{{define "page_css"}}
+
+{{end}}
