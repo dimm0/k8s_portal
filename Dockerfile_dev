@@ -1,0 +1,7 @@
+FROM golang:1.8.3-alpine3.6
+ADD k8s_oidc config.toml /
+ADD templates /templates
+RUN apk update && apk add git && go get github.com/dimm0/k8s_oidc
+RUN mkdir /sessions
+CMD ["sleep", "360000000"]
+EXPOSE 80

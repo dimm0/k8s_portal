@@ -13,3 +13,8 @@ cleanup:
 	rm k8s_oidc
 
 buildrelease: buildgo builddocker pushdocker cleanup
+
+builddevdocker:
+	docker build -t us.gcr.io/prp-k8s/oidc-auth:latest -f Dockerfile_dev .
+
+builddevrelease: buildgo builddevdocker pushdocker cleanup
