@@ -77,6 +77,20 @@ func RootHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 //handles the http requests for configuration file
+func LogoutHandler(w http.ResponseWriter, r *http.Request) {
+	session, err := store.Get(r, "prp-session")
+	if err != nil {
+		log.Printf("Error getting the session: %s", err.Error())
+	}
+	session.Options.MaxAge = -1
+	if e := session.Save(r, w); e != nil {
+		http.Error(w, "Failed to save session: "+e.Error(), http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, "/oidc-auth/", http.StatusFound)
+}
+
+//handles the http requests for configuration file
 func GetConfigHandler(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method != "GET" {

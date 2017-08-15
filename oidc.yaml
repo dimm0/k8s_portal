@@ -40,6 +40,8 @@ spec:
       - name: oidc-auth
         image: us.gcr.io/prp-k8s/oidc-auth:latest
         imagePullPolicy: Always
+      nodeSelector:
+        routable: "true"
 ---
 kind: Service
 apiVersion: v1

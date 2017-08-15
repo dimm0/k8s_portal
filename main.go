@@ -123,6 +123,7 @@ func main() {
 
 	http.HandleFunc("/getConfig", GetConfigHandler)
 	http.HandleFunc("/callback", AuthenticateHandler)
+	http.HandleFunc("/logout", LogoutHandler)
 
 	log.Printf("listening on http://%s/", "127.0.0.1")
 	log.Printf("Auth key %s %v", viper.GetString("sessionAuthKey"), len([]byte(viper.GetString("sessionAuthKey"))))
