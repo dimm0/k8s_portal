@@ -10,8 +10,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
-	"github.com/gorilla/sessions"
 	oidc "github.com/coreos/go-oidc"
+	"github.com/gorilla/sessions"
 
 	"github.com/spf13/viper"
 	"golang.org/x/net/context"

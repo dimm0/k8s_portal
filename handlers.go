@@ -6,6 +6,8 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"regexp"
+	"strings"
 	"sync"
 	"time"
 
@@ -14,7 +16,8 @@ import (
 
 	"github.com/spf13/viper"
 	"golang.org/x/oauth2"
-	"k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/clientcmd/api"
@@ -154,6 +157,15 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	userDomain := strings.Split(userInfo.Email, "@")[1]
+
+	reg, _ := regexp.Compile("[^a-zA-Z0-9-]+")
+	userNamespace := reg.ReplaceAllString(userDomain, "-")
+
+	if _, err := clientset.Core().Namespaces().Get(userNamespace, metav1.GetOptions{}); err != nil {
+		clientset.Core().Namespaces().Create(&v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: userNamespace}})
+	}
+
 	switch stateVal {
 	case "auth":
 		session.Values["userid"] = userInfo.Email
@@ -203,7 +215,7 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 		userID := viper.GetString("issuer") + "#" + userInfo.Subject
 
 		found := false
-		binding, err := clientset.Rbac().RoleBindings("default").Get("cilogon", v1.GetOptions{})
+		binding, err := clientset.Rbac().RoleBindings("default").Get("cilogon", metav1.GetOptions{})
 		if err == nil {
 			for _, subj := range binding.Subjects {
 				if subj.Name == userID {
