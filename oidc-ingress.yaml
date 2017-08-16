@@ -5,13 +5,12 @@ metadata:
   namespace: kube-system
   annotations:
     kubernetes.io/ingress.class: traefik
-    ingress.kubernetes.io/rewrite-target: /oidc-auth/
-    traefik.frontend.rule.type: PathPrefixStrip
+    ingress.kubernetes.io/rewrite-target: /oidc-auth
 spec:
   rules:
   - http:
       paths:
-      - path: /oidc-auth/
+      - path: /oidc-auth
         backend:
           serviceName: oidc-auth
           servicePort: 80
