@@ -89,7 +89,7 @@ func LogoutHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to save session: "+e.Error(), http.StatusInternalServerError)
 		return
 	}
-	http.Redirect(w, r, "/oidc-auth/", http.StatusFound)
+	http.Redirect(w, r, "/", http.StatusFound)
 }
 
 //handles the http requests for configuration file
@@ -264,7 +264,7 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		log.Printf("Saved session")
-		http.Redirect(w, r, "/oidc-auth/", http.StatusFound)
+		http.Redirect(w, r, "/", http.StatusFound)
 	case "config":
 		dat, err := ioutil.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/ca.crt")
 		if err != nil {
