@@ -6,22 +6,24 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"regexp"
+	"strings"
 	"sync"
 	"time"
 
+	oidc "github.com/coreos/go-oidc"
 	"github.com/gorilla/sessions"
 	clientcmdlatest "k8s.io/client-go/tools/clientcmd/api/latest"
 
 	"github.com/spf13/viper"
 	"golang.org/x/oauth2"
-	"k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/api/core/v1"
+	rbacv1beta1 "k8s.io/api/rbac/v1beta1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/clientcmd/api"
 )
-
-// var store = sessions.NewFilesystemStore("/sessions", []byte(viper.GetString("sessionAuthKey")), []byte(viper.GetString("sessionEncKey")))
-var store = sessions.NewCookieStore([]byte(viper.GetString("sessionAuthKey")))
 
 //keep config file to be requested later by JS
 var keys = map[string][]byte{}
@@ -45,6 +47,11 @@ type ConfigTemplateVars struct {
 	ConfigId string
 }
 
+type PodsTemplateVars struct {
+	IndexTemplateVars
+	Pods []string
+}
+
 func buildIndexTemplateVars(session *sessions.Session) IndexTemplateVars {
 	var userId string
 	if session.Values["userid"] != nil {
@@ -59,11 +66,6 @@ func RootHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("Error getting the session: %s", err.Error())
 	}
-
-	// if session.IsNew {
-	// 	http.Redirect(w, r, "/", http.StatusFound)
-	// 	return
-	// }
 
 	t, err := template.ParseFiles("templates/layout.tmpl", "templates/home.tmpl")
 	if err != nil {
@@ -120,6 +122,51 @@ func GetConfigHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+//handles the http requests for get services
+func ServicesHandler(w http.ResponseWriter, r *http.Request) {
+
+	if r.Method != "GET" {
+		return
+	}
+
+	session, err := store.Get(r, "prp-session")
+	if err != nil {
+		log.Printf("Error getting the session: %s", err.Error())
+	}
+
+	if session.IsNew {
+		http.Redirect(w, r, "/", http.StatusFound)
+		return
+	}
+
+	var podsList []string
+	if session.Values["namespace"] != nil {
+		list, _ := clientset.Core().Pods(session.Values["namespace"].(string)).List(metav1.ListOptions{})
+		for _, pod := range list.Items {
+			podsList = append(podsList, pod.GetName())
+		}
+	}
+
+	t, err := template.ParseFiles("templates/layout.tmpl", "templates/pods.tmpl")
+	if err != nil {
+		w.Write([]byte(err.Error()))
+	} else {
+		err = t.Execute(w, PodsTemplateVars{Pods: podsList, IndexTemplateVars: buildIndexTemplateVars(session)})
+		if err != nil {
+			w.Write([]byte(err.Error()))
+		}
+	}
+}
+
+func getUserNamespace(userInfo *oidc.UserInfo) string {
+
+	userDomain := strings.Split(userInfo.Email, "@")[1]
+
+	reg, _ := regexp.Compile("[^a-zA-Z0-9-]+")
+	userNamespace := reg.ReplaceAllString(userDomain, "-")
+	return userNamespace
+}
+
 func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method != "GET" {
@@ -157,9 +204,61 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	userNamespace := getUserNamespace(userInfo)
+
+	if _, err := clientset.Core().Namespaces().Get(userNamespace, metav1.GetOptions{}); err != nil {
+		clientset.Core().Namespaces().Create(&v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: userNamespace}})
+	}
+
+	userID := viper.GetString("issuer") + "#" + userInfo.Subject
+
+	binding, err := clientset.Rbac().RoleBindings(userNamespace).Get("cilogon", metav1.GetOptions{})
+	if err != nil {
+		binding, err = clientset.Rbac().RoleBindings(userNamespace).Create(&rbacv1beta1.RoleBinding{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "cilogon",
+			},
+			RoleRef: rbacv1beta1.RoleRef{
+				APIGroup: "rbac.authorization.k8s.io",
+				Kind:     "ClusterRole",
+				Name:     "cilogon-edit",
+			},
+			Subjects: []rbacv1beta1.Subject{rbacv1beta1.Subject{Kind: "User", APIGroup: "rbac.authorization.k8s.io", Name: userID}},
+		})
+		if err != nil {
+			log.Printf("Error creating userbinding %s\n", err.Error())
+		}
+	} else {
+		found := false
+		for _, subj := range binding.Subjects {
+			if subj.Name == userID {
+				found = true
+			}
+		}
+
+		if !found {
+			newUser := UserPatchJson{}
+			newUser.Op = "add"
+			newUser.Path = "/subjects/-"
+			newUser.Value.Kind = "User"
+			newUser.Value.Name = userID
+			newUser.Value.ApiGroup = "rbac.authorization.k8s.io"
+			userStr, _ := json.Marshal([]UserPatchJson{newUser})
+			log.Printf("Doing patch %s", userStr)
+
+			patchres, err := clientset.Rbac().RoleBindings(userNamespace).Patch("cilogon", types.JSONPatchType, userStr, "")
+			if err != nil {
+				log.Printf("Error doing patch %s\n", err.Error())
+			} else {
+				log.Printf("Success doing patch %v\n", patchres)
+			}
+		}
+	}
+
 	switch stateVal {
 	case "auth":
-		session.Values["userid"] = userInfo.Subject
+		session.Values["userid"] = userInfo.Email
+		session.Values["namespace"] = userNamespace
 		if e := session.Save(r, w); e != nil {
 			http.Error(w, "Failed to save session: "+e.Error(), http.StatusInternalServerError)
 			return
@@ -173,6 +272,7 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		log.Printf("Got token: %v", oauth2Token)
 		co := api.Config{
 			APIVersion: "v1",
 			Clusters: map[string]*api.Cluster{
@@ -192,42 +292,14 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 					Name: "oidc",
 					Config: map[string]string{
 						"id-token":       oauth2Token.Extra("id_token").(string),
+						"refresh-token":  oauth2Token.RefreshToken,
 						"client-id":      viper.GetString("client_id"),
+						"client-secret":  viper.GetString("client_secret"),
 						"idp-issuer-url": viper.GetString("issuer"),
 					},
 				},
 			}},
 			CurrentContext: "calit2",
-		}
-
-		userID := viper.GetString("issuer") + "#" + userInfo.Subject
-
-		found := false
-		binding, err := clientset.Rbac().RoleBindings("default").Get("cilogon", v1.GetOptions{})
-		if err == nil {
-			for _, subj := range binding.Subjects {
-				if subj.Name == userID {
-					found = true
-				}
-			}
-		}
-
-		if !found {
-			newUser := UserPatchJson{}
-			newUser.Op = "add"
-			newUser.Path = "/subjects/-"
-			newUser.Value.Kind = "User"
-			newUser.Value.Name = userID
-			newUser.Value.ApiGroup = "rbac.authorization.k8s.io"
-			userStr, _ := json.Marshal([]UserPatchJson{newUser})
-			log.Printf("Doing patch %s", userStr)
-
-			patchres, err := clientset.Rbac().RoleBindings("default").Patch("cilogon", types.JSONPatchType, userStr, "")
-			if err != nil {
-				log.Printf("Error doing patch %s", err.Error())
-			} else {
-				log.Printf("Success doing patch %v", patchres)
-			}
 		}
 
 		data, err := runtime.Encode(clientcmdlatest.Codec, &co)

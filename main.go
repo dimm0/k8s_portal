@@ -11,6 +11,7 @@ import (
 	"k8s.io/client-go/rest"
 
 	oidc "github.com/coreos/go-oidc"
+	"github.com/gorilla/sessions"
 
 	"github.com/spf13/viper"
 	"golang.org/x/net/context"
@@ -22,6 +23,7 @@ const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 var config oauth2.Config
 var provider *oidc.Provider
 var clientset *kubernetes.Clientset
+var store *sessions.FilesystemStore
 
 type UserPatchJson struct {
 	Op    string `json:"op"`
@@ -51,6 +53,8 @@ func main() {
 	if err != nil {
 		panic(fmt.Errorf("fatal error config file: %s", err))
 	}
+
+	store = sessions.NewFilesystemStore("/sessions", []byte(viper.GetString("sessionAuthKey")), []byte(viper.GetString("sessionEncKey")))
 
 	provider, err = oidc.NewProvider(ctx, "https://test.cilogon.org")
 	if err != nil {
@@ -88,6 +92,7 @@ func main() {
 	// fmt.Printf("Clusterinfo: %v", clientset)
 
 	http.HandleFunc("/", RootHandler)
+	http.HandleFunc("/services", ServicesHandler)
 
 	http.HandleFunc("/authConfig", func(w http.ResponseWriter, r *http.Request) {
 		statesLock.Lock()
