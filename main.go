@@ -92,6 +92,7 @@ func main() {
 	// fmt.Printf("Clusterinfo: %v", clientset)
 
 	http.HandleFunc("/", RootHandler)
+	http.HandleFunc("/services", ServicesHandler)
 
 	http.HandleFunc("/authConfig", func(w http.ResponseWriter, r *http.Request) {
 		statesLock.Lock()

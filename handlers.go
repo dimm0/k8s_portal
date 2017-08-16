@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	oidc "github.com/coreos/go-oidc"
 	"github.com/gorilla/sessions"
 	clientcmdlatest "k8s.io/client-go/tools/clientcmd/api/latest"
 
@@ -46,6 +47,11 @@ type ConfigTemplateVars struct {
 	ConfigId string
 }
 
+type PodsTemplateVars struct {
+	IndexTemplateVars
+	Pods []string
+}
+
 func buildIndexTemplateVars(session *sessions.Session) IndexTemplateVars {
 	var userId string
 	if session.Values["userid"] != nil {
@@ -60,11 +66,6 @@ func RootHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("Error getting the session: %s", err.Error())
 	}
-
-	// if session.IsNew {
-	// 	http.Redirect(w, r, "/", http.StatusFound)
-	// 	return
-	// }
 
 	t, err := template.ParseFiles("templates/layout.tmpl", "templates/home.tmpl")
 	if err != nil {
@@ -121,6 +122,51 @@ func GetConfigHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+//handles the http requests for get services
+func ServicesHandler(w http.ResponseWriter, r *http.Request) {
+
+	if r.Method != "GET" {
+		return
+	}
+
+	session, err := store.Get(r, "prp-session")
+	if err != nil {
+		log.Printf("Error getting the session: %s", err.Error())
+	}
+
+	if session.IsNew {
+		http.Redirect(w, r, "/", http.StatusFound)
+		return
+	}
+
+	var podsList []string
+	if session.Values["namespace"] != nil {
+		list, _ := clientset.Core().Pods(session.Values["namespace"].(string)).List(metav1.ListOptions{})
+		for _, pod := range list.Items {
+			podsList = append(podsList, pod.GetName())
+		}
+	}
+
+	t, err := template.ParseFiles("templates/layout.tmpl", "templates/pods.tmpl")
+	if err != nil {
+		w.Write([]byte(err.Error()))
+	} else {
+		err = t.Execute(w, PodsTemplateVars{Pods: podsList, IndexTemplateVars: buildIndexTemplateVars(session)})
+		if err != nil {
+			w.Write([]byte(err.Error()))
+		}
+	}
+}
+
+func getUserNamespace(userInfo *oidc.UserInfo) string {
+
+	userDomain := strings.Split(userInfo.Email, "@")[1]
+
+	reg, _ := regexp.Compile("[^a-zA-Z0-9-]+")
+	userNamespace := reg.ReplaceAllString(userDomain, "-")
+	return userNamespace
+}
+
 func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method != "GET" {
@@ -158,10 +204,7 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userDomain := strings.Split(userInfo.Email, "@")[1]
-
-	reg, _ := regexp.Compile("[^a-zA-Z0-9-]+")
-	userNamespace := reg.ReplaceAllString(userDomain, "-")
+	userNamespace := getUserNamespace(userInfo)
 
 	if _, err := clientset.Core().Namespaces().Get(userNamespace, metav1.GetOptions{}); err != nil {
 		clientset.Core().Namespaces().Create(&v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: userNamespace}})
@@ -215,6 +258,7 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 	switch stateVal {
 	case "auth":
 		session.Values["userid"] = userInfo.Email
+		session.Values["namespace"] = userNamespace
 		if e := session.Save(r, w); e != nil {
 			http.Error(w, "Failed to save session: "+e.Error(), http.StatusInternalServerError)
 			return
