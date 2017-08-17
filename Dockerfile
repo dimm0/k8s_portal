@@ -1,5 +1,5 @@
 FROM scratch
-ADD k8s_oidc config.toml /
+ADD k8s_oidc /
 ADD templates /templates
 ADD ca-bundle.crt /etc/ssl/certs/
 RUN mkdir /sessions

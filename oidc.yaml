@@ -20,7 +20,6 @@ roleRef:
 ---
 apiVersion: extensions/v1beta1
 kind: Deployment
-apiVersion: extensions/v1beta1
 metadata:
   labels:
     k8s-app: oidc-auth
@@ -40,8 +39,15 @@ spec:
       - name: oidc-auth
         image: us.gcr.io/prp-k8s/oidc-auth:latest
         imagePullPolicy: Always
+        volumeMounts:
+        - name: config-volume
+          mountPath: /config.toml
       nodeSelector:
         routable: "true"
+      volumes:
+      - name: config-volume
+        configMap:
+          name: portal-config
 ---
 kind: Service
 apiVersion: v1
