@@ -297,8 +297,9 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 			},
 			Contexts: map[string]*api.Context{
 				"calit2": &api.Context{
-					Cluster:  "calit2",
-					AuthInfo: userInfo.Subject,
+					Cluster:   "calit2",
+					AuthInfo:  userInfo.Subject,
+					Namespace: userNamespace,
 				},
 			},
 			AuthInfos: map[string]*api.AuthInfo{userInfo.Subject: {
