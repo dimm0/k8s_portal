@@ -23,7 +23,7 @@ const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 var config oauth2.Config
 var provider *oidc.Provider
 var clientset *kubernetes.Clientset
-var store *sessions.FilesystemStore
+var filestore *sessions.FilesystemStore
 
 type UserPatchJson struct {
 	Op    string `json:"op"`
@@ -47,14 +47,14 @@ func main() {
 	rand.Seed(time.Now().UnixNano())
 	ctx := context.Background()
 	viper.SetConfigName("config")
-	viper.AddConfigPath(".")
+	viper.AddConfigPath("config")
 
 	err := viper.ReadInConfig()
 	if err != nil {
 		panic(fmt.Errorf("fatal error config file: %s", err))
 	}
 
-	store = sessions.NewFilesystemStore("/sessions", []byte(viper.GetString("sessionAuthKey")), []byte(viper.GetString("sessionEncKey")))
+	filestore = sessions.NewFilesystemStore("/sessions", []byte(viper.GetString("sessionAuthKey")), []byte(viper.GetString("sessionEncKey")))
 
 	provider, err = oidc.NewProvider(ctx, "https://test.cilogon.org")
 	if err != nil {
@@ -88,7 +88,6 @@ func main() {
 	// if err != nil {
 	// 	log.Fatal("Failed to get clusterinfo: " + err.Error())
 	// }
-
 	// fmt.Printf("Clusterinfo: %v", clientset)
 
 	http.HandleFunc("/", RootHandler)

@@ -15,24 +15,18 @@
 
 <body>
   <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
-      <a class="navbar-brand" href="#">PRP K8S Home</a>
+      <a class="navbar-brand" href="/">PRP K8S Home</a>
       <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarResponsive" aria-controls="navbarResponsive" aria-expanded="false" aria-label="Toggle navigation">
           <span class="navbar-toggler-icon"></span>
       </button>
       <div class="collapse navbar-collapse" id="navbarResponsive">
           <ul class="navbar-nav ml-auto">
-              <li class="nav-item active">
-                  <a class="nav-link" href="#">Home <span class="sr-only">(current)</span></a>
-              </li>
               {{if not .User.UserID}}
               <li class="nav-item">
                 <a class="nav-link" id="loginbtn" href="auth">Login</a>
               </li>
               {{end}}
               {{if .User.UserID}}
-              <li class="nav-item">
-                  <a class="nav-link">About</a>
-              </li>
               <li class="nav-item">
                   <a class="nav-link" href="services">Services</a>
               </li>

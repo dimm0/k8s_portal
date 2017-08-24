@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"html/template"
 	"io/ioutil"
 	"log"
@@ -47,9 +48,10 @@ type ConfigTemplateVars struct {
 	ConfigId string
 }
 
-type PodsTemplateVars struct {
+type ServicesTemplateVars struct {
 	IndexTemplateVars
-	Pods []string
+	Pods       []string
+	GrafanaUrl string
 }
 
 func buildIndexTemplateVars(session *sessions.Session) IndexTemplateVars {
@@ -62,7 +64,7 @@ func buildIndexTemplateVars(session *sessions.Session) IndexTemplateVars {
 }
 
 func RootHandler(w http.ResponseWriter, r *http.Request) {
-	session, err := store.Get(r, "prp-session")
+	session, err := filestore.Get(r, "prp-session")
 	if err != nil {
 		log.Printf("Error getting the session: %s", err.Error())
 	}
@@ -80,7 +82,7 @@ func RootHandler(w http.ResponseWriter, r *http.Request) {
 
 //handles the http requests for configuration file
 func LogoutHandler(w http.ResponseWriter, r *http.Request) {
-	session, err := store.Get(r, "prp-session")
+	session, err := filestore.Get(r, "prp-session")
 	if err != nil {
 		log.Printf("Error getting the session: %s", err.Error())
 	}
@@ -99,7 +101,7 @@ func GetConfigHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	session, err := store.Get(r, "prp-session")
+	session, err := filestore.Get(r, "prp-session")
 	if err != nil {
 		log.Printf("Error getting the session: %s", err.Error())
 	}
@@ -129,7 +131,7 @@ func ServicesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	session, err := store.Get(r, "prp-session")
+	session, err := filestore.Get(r, "prp-session")
 	if err != nil {
 		log.Printf("Error getting the session: %s", err.Error())
 	}
@@ -147,11 +149,23 @@ func ServicesHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	t, err := template.ParseFiles("templates/layout.tmpl", "templates/pods.tmpl")
+	grafanaURL := "Not found"
+	grafanaService, err := clientset.Services("kube-system").Get("monitoring-grafana", metav1.GetOptions{})
+	if err != nil {
+		log.Printf("Error getting Grafana service: %s", err.Error())
+	} else {
+		for _, port := range grafanaService.Spec.Ports {
+			if port.NodePort > 30000 {
+				grafanaURL = fmt.Sprintf("%s:%d", viper.GetString("cluster_url"), port.NodePort)
+			}
+		}
+	}
+
+	t, err := template.ParseFiles("templates/layout.tmpl", "templates/services.tmpl")
 	if err != nil {
 		w.Write([]byte(err.Error()))
 	} else {
-		err = t.Execute(w, PodsTemplateVars{Pods: podsList, IndexTemplateVars: buildIndexTemplateVars(session)})
+		err = t.Execute(w, ServicesTemplateVars{Pods: podsList, GrafanaUrl: grafanaURL, IndexTemplateVars: buildIndexTemplateVars(session)})
 		if err != nil {
 			w.Write([]byte(err.Error()))
 		}
@@ -173,7 +187,7 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	session, err := store.Get(r, "prp-session")
+	session, err := filestore.Get(r, "prp-session")
 	if err != nil {
 		log.Printf("Error getting the session: %s", err.Error())
 	}

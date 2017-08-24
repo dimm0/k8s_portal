@@ -1,8 +1,9 @@
 client_id=""
 client_secret=""
 kubernetes_server="https://67.58.53.146:6443"
-redirect_url="https://k8s.optiputer.net/oidc-auth/callback"
+redirect_url="https://k8s.optiputer.net/callback"
 issuer="https://test.cilogon.org"
+cluster_url="http://k8s.optiputer.net"
 
 sessionAuthKey=""
 sessionEncKey=""

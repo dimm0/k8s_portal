@@ -18,3 +18,6 @@ builddevdocker:
 	docker build -t us.gcr.io/prp-k8s/oidc-auth:latest -f Dockerfile_dev .
 
 builddevrelease: buildgo builddevdocker pushdocker cleanup
+
+pushconfig:
+	kubectl create configmap portal-config --from-file=config.toml -n kube-system

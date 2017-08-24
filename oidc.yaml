@@ -41,7 +41,7 @@ spec:
         imagePullPolicy: Always
         volumeMounts:
         - name: config-volume
-          mountPath: /config.toml
+          mountPath: /config
       nodeSelector:
         routable: "true"
       volumes:
