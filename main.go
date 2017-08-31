@@ -5,6 +5,7 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"os"
 	"time"
 
 	"k8s.io/client-go/kubernetes"
@@ -54,6 +55,7 @@ func main() {
 		panic(fmt.Errorf("fatal error config file: %s", err))
 	}
 
+	os.Mkdir("/sessions", 0777)
 	filestore = sessions.NewFilesystemStore("/sessions", []byte(viper.GetString("sessionAuthKey")), []byte(viper.GetString("sessionEncKey")))
 
 	provider, err = oidc.NewProvider(ctx, "https://test.cilogon.org")

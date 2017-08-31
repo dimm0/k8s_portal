@@ -1,7 +1,7 @@
 default: buildrelease
 
 buildgo:
-	CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo .
+	CGO_ENABLED=0 GOOS=linux go build -a -installsuffix "static" .
 
 builddocker:
 	docker build -t us.gcr.io/prp-k8s/oidc-auth:latest .
