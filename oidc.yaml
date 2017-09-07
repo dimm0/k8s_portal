@@ -37,13 +37,13 @@ spec:
         - name: gcr-json-key
       containers:
       - name: oidc-auth
-        image: us.gcr.io/prp-k8s/oidc-auth:latest
+        image: us.gcr.io/prp-k8s/oidc-auth:bigdipa
         imagePullPolicy: Always
         volumeMounts:
         - name: config-volume
           mountPath: /config
-      nodeSelector:
-        routable: "true"
+      # nodeSelector:
+      #   routable: "true"
       volumes:
       - name: config-volume
         configMap:

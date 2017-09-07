@@ -29,6 +29,11 @@ import (
 //keep config file to be requested later by JS
 var keys = map[string][]byte{}
 
+//service mappings
+var serviceMappings map[string]int
+
+var serviceMappingsMutex = &sync.Mutex{}
+
 //OIDC states
 var states = map[string]string{}
 
@@ -266,6 +271,39 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 			} else {
 				log.Printf("Success doing patch %v\n", patchres)
 			}
+
+			go func() {
+				depl, err := clientset.AppsV1beta1().StatefulSets("default").Get("bigdipa", metav1.GetOptions{})
+				if err != nil {
+					log.Printf("Error getting deployment %s\n", err.Error())
+					return
+				}
+				*depl.Spec.Replicas++
+				for depl.Status.ReadyReplicas < *depl.Spec.Replicas {
+					time.Sleep(time.Second)
+				}
+				serviceMappingsMutex.Lock()
+				defer serviceMappingsMutex.Unlock()
+				pods, err := clientset.Pods("default").List(metav1.ListOptions{})
+				if err != nil {
+					log.Printf("Error getting pods %s\n", err.Error())
+					return
+				}
+				for _, pod := range pods.Items {
+					if _, ok := serviceMappings[pod.ObjectMeta.Name]; !ok {
+						clientset.Services("default").Create(&v1.Service{
+							ObjectMeta: metav1.ObjectMeta{Name: userID + "-jupyter"},
+							Spec: v1.ServiceSpec{
+								Type:  v1.ServiceTypeNodePort,
+								Ports: []v1.ServicePort{v1.ServicePort{Port: 8888}},
+								Selector: map[string]string{
+									"set-component": pod.Name,
+								},
+							},
+						})
+					}
+				}
+			}()
 		}
 	}
 

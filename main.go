@@ -67,7 +67,7 @@ func main() {
 		ClientSecret: viper.GetString("client_secret"),
 		Endpoint:     provider.Endpoint(),
 		RedirectURL:  viper.GetString("redirect_url"),
-		Scopes:       []string{oidc.ScopeOpenID, "profile", "email", "org.cilogon.userinfo", "edu.uiuc.ncsa.myproxy.getcert"},
+		Scopes:       []string{oidc.ScopeOpenID, "profile", "email", "org.cilogon.userinfo"},
 	}
 
 	// oidcConfig := &oidc.Config{

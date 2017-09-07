@@ -4,10 +4,10 @@ buildgo:
 	CGO_ENABLED=0 GOOS=linux go build -a -installsuffix "static" .
 
 builddocker:
-	docker build -t us.gcr.io/prp-k8s/oidc-auth:latest .
+	docker build -t us.gcr.io/prp-k8s/oidc-auth:bigdipa .
 
 pushdocker:
-	gcloud docker -- push us.gcr.io/prp-k8s/oidc-auth
+	gcloud docker -- push us.gcr.io/prp-k8s/oidc-auth:bigdipa
 
 cleanup:
 	rm k8s_oidc
@@ -15,7 +15,7 @@ cleanup:
 buildrelease: buildgo builddocker pushdocker cleanup
 
 builddevdocker:
-	docker build -t us.gcr.io/prp-k8s/oidc-auth:latest -f Dockerfile_dev .
+	docker build -t us.gcr.io/prp-k8s/oidc-auth:bigdipa -f Dockerfile_dev .
 
 builddevrelease: buildgo builddevdocker pushdocker cleanup
 
