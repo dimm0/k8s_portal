@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"path"
 	"time"
 
 	"k8s.io/client-go/kubernetes"
@@ -17,6 +18,9 @@ import (
 	"github.com/spf13/viper"
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
+
+	"github.com/jinzhu/gorm"
+	_ "github.com/jinzhu/gorm/dialects/sqlite"
 )
 
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -35,6 +39,15 @@ type UserPatchJson struct {
 		ApiGroup string `json:"apiGroup"`
 	} `json:"value"`
 }
+
+type JupyterUser struct {
+	gorm.Model
+	Email            string
+	JupyterContainer string
+	ServicePort      int
+}
+
+var userdb *gorm.DB
 
 func randStringBytes(n int) string {
 	b := make([]byte, n)
@@ -55,8 +68,17 @@ func main() {
 		panic(fmt.Errorf("fatal error config file: %s", err))
 	}
 
-	os.Mkdir("/sessions", 0777)
-	filestore = sessions.NewFilesystemStore("/sessions", []byte(viper.GetString("sessionAuthKey")), []byte(viper.GetString("sessionEncKey")))
+	os.Mkdir(path.Join(viper.GetString("storage_path"), "sessions"), 0777)
+	filestore = sessions.NewFilesystemStore(path.Join(viper.GetString("storage_path"), "sessions"), []byte(viper.GetString("sessionAuthKey")), []byte(viper.GetString("sessionEncKey")))
+
+	db_, err := gorm.Open("sqlite3", path.Join(viper.GetString("storage_path"), "user.db"))
+	userdb = db_
+	if err != nil {
+		log.Printf("failed to connect database %s", err.Error())
+		return
+	}
+	defer userdb.Close()
+	userdb.AutoMigrate(&JupyterUser{})
 
 	provider, err = oidc.NewProvider(ctx, "https://test.cilogon.org")
 	if err != nil {

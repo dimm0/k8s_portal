@@ -290,7 +290,9 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 				for _, pod := range pods.Items {
-					if _, ok := serviceMappings[pod.ObjectMeta.Name]; !ok {
+					var user JupyterUser
+					if userdb.First(user, "jupyter_container = ?", pod.ObjectMeta.Name); user.Model.ID == 0 {
+						// if _, ok := serviceMappings[pod.ObjectMeta.Name]; !ok {
 						clientset.Services("default").Create(&v1.Service{
 							ObjectMeta: metav1.ObjectMeta{Name: userID + "-jupyter"},
 							Spec: v1.ServiceSpec{
@@ -301,6 +303,7 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 								},
 							},
 						})
+						userdb.Create(&JupyterUser{Email: userInfo.Email, JupyterContainer: pod.ObjectMeta.Name})
 					}
 				}
 			}()
