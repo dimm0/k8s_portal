@@ -8,12 +8,8 @@ import (
 	"log"
 	"net/http"
 	"regexp"
-	"strings"
-	"sync"
 	"time"
 
-	oidc "github.com/coreos/go-oidc"
-	"github.com/gorilla/sessions"
 	clientcmdlatest "k8s.io/client-go/tools/clientcmd/api/latest"
 
 	"github.com/spf13/viper"
@@ -25,48 +21,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/clientcmd/api"
 )
-
-//keep config file to be requested later by JS
-var keys = map[string][]byte{}
-
-//service mappings
-var serviceMappings map[string]int
-
-var serviceMappingsMutex = &sync.Mutex{}
-
-//OIDC states
-var states = map[string]string{}
-
-var keysLock = sync.RWMutex{}
-var statesLock = sync.RWMutex{}
-
-type PrpUser struct {
-	UserID string
-}
-
-type IndexTemplateVars struct {
-	User PrpUser
-}
-
-type ConfigTemplateVars struct {
-	IndexTemplateVars
-	ConfigId string
-}
-
-type ServicesTemplateVars struct {
-	IndexTemplateVars
-	Pods       []string
-	GrafanaUrl string
-}
-
-func buildIndexTemplateVars(session *sessions.Session) IndexTemplateVars {
-	var userId string
-	if session.Values["userid"] != nil {
-		userId = session.Values["userid"].(string)
-	}
-	returnVars := IndexTemplateVars{User: PrpUser{UserID: userId}}
-	return returnVars
-}
 
 func RootHandler(w http.ResponseWriter, r *http.Request) {
 	session, err := filestore.Get(r, "prp-session")
@@ -146,22 +100,17 @@ func ServicesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var podsList []string
-	if session.Values["namespace"] != nil {
-		list, _ := clientset.Core().Pods(session.Values["namespace"].(string)).List(metav1.ListOptions{})
-		for _, pod := range list.Items {
-			podsList = append(podsList, pod.GetName())
-		}
-	}
+	reg, _ := regexp.Compile("[^a-zA-Z0-9]+")
+	userStringID := reg.ReplaceAllString(session.Values["userid"].(string), "-")
 
-	grafanaURL := "Not found"
-	grafanaService, err := clientset.Services("kube-system").Get("monitoring-grafana", metav1.GetOptions{})
+	jupyterURL := "Not found"
+	jupyterService, err := clientset.Services("default").Get(userStringID+"-jupyter", metav1.GetOptions{})
 	if err != nil {
-		log.Printf("Error getting Grafana service: %s", err.Error())
+		log.Printf("Error getting Jupyter service: %s", err.Error())
 	} else {
-		for _, port := range grafanaService.Spec.Ports {
+		for _, port := range jupyterService.Spec.Ports {
 			if port.NodePort > 30000 {
-				grafanaURL = fmt.Sprintf("%s:%d", viper.GetString("cluster_url"), port.NodePort)
+				jupyterURL = fmt.Sprintf("%s:%d", viper.GetString("cluster_url"), port.NodePort)
 			}
 		}
 	}
@@ -170,20 +119,11 @@ func ServicesHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.Write([]byte(err.Error()))
 	} else {
-		err = t.Execute(w, ServicesTemplateVars{Pods: podsList, GrafanaUrl: grafanaURL, IndexTemplateVars: buildIndexTemplateVars(session)})
+		err = t.Execute(w, ServicesTemplateVars{JupyterUrl: jupyterURL, IndexTemplateVars: buildIndexTemplateVars(session)})
 		if err != nil {
 			w.Write([]byte(err.Error()))
 		}
 	}
-}
-
-func getUserNamespace(userInfo *oidc.UserInfo) string {
-
-	userDomain := strings.Split(userInfo.Email, "@")[1]
-
-	reg, _ := regexp.Compile("[^a-zA-Z0-9-]+")
-	userNamespace := reg.ReplaceAllString(userDomain, "-")
-	return userNamespace
 }
 
 func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
@@ -272,43 +212,65 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 				log.Printf("Success doing patch %v\n", patchres)
 			}
 
-			go func() {
-				depl, err := clientset.AppsV1beta1().StatefulSets("default").Get("bigdipa", metav1.GetOptions{})
-				if err != nil {
-					log.Printf("Error getting deployment %s\n", err.Error())
-					return
-				}
-				*depl.Spec.Replicas++
-				for depl.Status.ReadyReplicas < *depl.Spec.Replicas {
-					time.Sleep(time.Second)
-				}
-				serviceMappingsMutex.Lock()
-				defer serviceMappingsMutex.Unlock()
-				pods, err := clientset.Pods("default").List(metav1.ListOptions{})
-				if err != nil {
-					log.Printf("Error getting pods %s\n", err.Error())
-					return
-				}
-				for _, pod := range pods.Items {
-					var user JupyterUser
-					if userdb.First(user, "jupyter_container = ?", pod.ObjectMeta.Name); user.Model.ID == 0 {
-						// if _, ok := serviceMappings[pod.ObjectMeta.Name]; !ok {
-						clientset.Services("default").Create(&v1.Service{
-							ObjectMeta: metav1.ObjectMeta{Name: userID + "-jupyter"},
-							Spec: v1.ServiceSpec{
-								Type:  v1.ServiceTypeNodePort,
-								Ports: []v1.ServicePort{v1.ServicePort{Port: 8888}},
-								Selector: map[string]string{
-									"set-component": pod.Name,
-								},
-							},
-						})
-						userdb.Create(&JupyterUser{Email: userInfo.Email, JupyterContainer: pod.ObjectMeta.Name})
-					}
-				}
-			}()
 		}
 	}
+
+	go func() {
+
+		reg, _ := regexp.Compile("[^a-zA-Z0-9]+")
+		userStringID := reg.ReplaceAllString(userInfo.Email, "-")
+
+		serviceMappingsMutex.Lock()
+		defer serviceMappingsMutex.Unlock()
+
+		pod, err := FindUsersPod(userStringID)
+		if err != nil {
+			log.Printf("Error finding user's pod %s", err.Error())
+			return
+		}
+
+		if pod == nil { // not created
+			pod, err := FindFreePod()
+			if err != nil {
+				log.Printf("Error finding free pod %s", err.Error())
+				return
+			}
+
+			if pod == nil { // Scale it
+				err := ScaleSet()
+				if err != nil {
+					log.Printf("Error scaling the set %s", err.Error())
+					return
+				}
+				pod, err = FindFreePod()
+				if err != nil {
+					log.Printf("Error finding free pod %s", err.Error())
+					return
+				}
+			}
+
+			log.Printf("Assigning label to a pod %s", pod.GetName())
+			labelStr, _ := json.Marshal([]map[string]string{map[string]string{"op": "add", "path": "/metadata/labels/bigdipa_user", "value": userStringID}})
+			clientset.Pods("default").Patch(pod.GetName(), types.JSONPatchType, labelStr, "")
+
+			_, err = clientset.Services("default").Create(&v1.Service{
+				ObjectMeta: metav1.ObjectMeta{Name: userStringID + "-jupyter"},
+				Spec: v1.ServiceSpec{
+					Type:  v1.ServiceTypeNodePort,
+					Ports: []v1.ServicePort{v1.ServicePort{Port: 8888}},
+					Selector: map[string]string{
+						"set-component": pod.Name,
+					},
+				},
+			})
+
+			if err != nil {
+				log.Printf("Error creating the service: %s", err.Error())
+			} else {
+				log.Printf("Assigned service %s to user %s", userStringID+"-jupyter", userStringID)
+			}
+		}
+	}()
 
 	switch stateVal {
 	case "auth":
