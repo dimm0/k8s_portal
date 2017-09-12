@@ -2,7 +2,7 @@
   <div class="container" style="padding-top: 16em">
       <div class="jumbotron">
           <div class="text-center">
-              <p class="lead">Jupyter: <a href="{{.JupyterUrl}}">{{.JupyterUrl}}</a></p>
+              <p class="lead">Jupyter: <a href="{{.JupyterUrl}}">{{.JupyterUrl}}</a> {{if not .PodStatus}}(Pod is being created)){{end}}</p>
           </div>
       </div>
   </div>

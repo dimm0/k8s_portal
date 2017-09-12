@@ -23,7 +23,8 @@ var keys = map[string][]byte{}
 //service mappings
 var serviceMappings map[string]int
 
-var serviceMappingsMutex = &sync.Mutex{}
+var markMutex = &sync.Mutex{}
+var scaleMutex = &sync.Mutex{}
 
 //OIDC states
 var states = map[string]string{}
@@ -47,6 +48,7 @@ type ConfigTemplateVars struct {
 type ServicesTemplateVars struct {
 	IndexTemplateVars
 	JupyterUrl string
+	PodStatus  bool
 }
 
 func buildIndexTemplateVars(session *sessions.Session) IndexTemplateVars {
@@ -68,36 +70,36 @@ func getUserNamespace(userInfo *oidc.UserInfo) string {
 }
 
 func FindUsersPod(userID string) (*v1.Pod, error) {
-	pods, err := clientset.Pods("default").List(metav1.ListOptions{LabelSelector: "k8s-app=bigdipa"})
+	pods, err := clientset.Pods("default").List(metav1.ListOptions{LabelSelector: "k8s-app=bigdipa, bigdipa_user=" + userID})
 	if err != nil {
 		return nil, err
 	}
 	for _, pod := range pods.Items {
-		podLabels := pod.GetLabels()
-		if val, ok := podLabels["bigdipa_user"]; ok {
-			if val == userID { // Found the user's POD!
-				return &pod, nil
-			}
-		}
+		return &pod, nil
 	}
 	return nil, nil
 }
 
-func FindFreePod() (*v1.Pod, error) {
-	pods, err := clientset.Pods("default").List(metav1.ListOptions{LabelSelector: "k8s-app=bigdipa"})
+func MarkFreePod(userStringID string) (*v1.Pod, error) {
+	markMutex.Lock()
+	defer markMutex.Unlock()
+
+	pods, err := clientset.Pods("default").List(metav1.ListOptions{LabelSelector: "k8s-app=bigdipa, !bigdipa_user"})
 	if err != nil {
 		return nil, err
 	}
 	for _, pod := range pods.Items {
-		podLabels := pod.GetLabels()
-		if _, ok := podLabels["bigdipa_user"]; !ok {
-			return &pod, nil
-		}
+		log.Printf("Assigning label to a pod %s", pod.GetName())
+		labelStr, _ := json.Marshal([]map[string]string{map[string]string{"op": "add", "path": "/metadata/labels/bigdipa_user", "value": userStringID}})
+		clientset.Pods("default").Patch(pod.GetName(), types.JSONPatchType, labelStr, "")
+		return &pod, nil
 	}
 	return nil, nil
 }
 
 func ScaleSet() error {
+	scaleMutex.Lock()
+	defer scaleMutex.Unlock()
 	depl, err := clientset.AppsV1beta1().StatefulSets("default").Get("bigdipa", metav1.GetOptions{})
 	if err != nil {
 		return err

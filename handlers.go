@@ -103,6 +103,11 @@ func ServicesHandler(w http.ResponseWriter, r *http.Request) {
 	reg, _ := regexp.Compile("[^a-zA-Z0-9]+")
 	userStringID := reg.ReplaceAllString(session.Values["userid"].(string), "-")
 
+	pod, err := FindUsersPod(userStringID)
+	if err != nil {
+		log.Printf("Error getting the user's POD status: %s", err.Error())
+	}
+
 	jupyterURL := "Not found"
 	jupyterService, err := clientset.Services("default").Get(userStringID+"-jupyter", metav1.GetOptions{})
 	if err != nil {
@@ -119,7 +124,7 @@ func ServicesHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.Write([]byte(err.Error()))
 	} else {
-		err = t.Execute(w, ServicesTemplateVars{JupyterUrl: jupyterURL, IndexTemplateVars: buildIndexTemplateVars(session)})
+		err = t.Execute(w, ServicesTemplateVars{JupyterUrl: jupyterURL, PodStatus: pod != nil, IndexTemplateVars: buildIndexTemplateVars(session)})
 		if err != nil {
 			w.Write([]byte(err.Error()))
 		}
@@ -220,8 +225,29 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 		reg, _ := regexp.Compile("[^a-zA-Z0-9]+")
 		userStringID := reg.ReplaceAllString(userInfo.Email, "-")
 
-		serviceMappingsMutex.Lock()
-		defer serviceMappingsMutex.Unlock()
+		if _, err := clientset.Services("default").Get(userStringID+"-jupyter", metav1.GetOptions{}); err == nil { // service is the mutex for the user, to avoid creating pods multiple times
+			return
+		}
+
+		_, err = clientset.Services("default").Create(&v1.Service{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:   userStringID + "-jupyter",
+				Labels: map[string]string{"k8s-app": "bigdipa"},
+			},
+			Spec: v1.ServiceSpec{
+				Type:  v1.ServiceTypeNodePort,
+				Ports: []v1.ServicePort{v1.ServicePort{Port: 8888}},
+				Selector: map[string]string{
+					"bigdipa_user": userStringID,
+				},
+			},
+		})
+
+		if err != nil {
+			log.Printf("Error creating the service: %s", err.Error())
+		} else {
+			log.Printf("Assigned service %s to user %s", userStringID+"-jupyter", userStringID)
+		}
 
 		pod, err := FindUsersPod(userStringID)
 		if err != nil {
@@ -230,45 +256,30 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if pod == nil { // not created
-			pod, err := FindFreePod()
+			pod, err := MarkFreePod(userStringID)
 			if err != nil {
 				log.Printf("Error finding free pod %s", err.Error())
 				return
 			}
 
-			if pod == nil { // Scale it
+			if pod == nil { // Scale it by 1
 				err := ScaleSet()
 				if err != nil {
 					log.Printf("Error scaling the set %s", err.Error())
 					return
 				}
-				pod, err = FindFreePod()
-				if err != nil {
-					log.Printf("Error finding free pod %s", err.Error())
-					return
+
+				for pod == nil {
+					log.Printf("Waiting for pod for user %s", userStringID)
+					pod, err = MarkFreePod(userStringID)
+					time.Sleep(time.Second * 5)
+					if err != nil {
+						log.Printf("Error finding free pod for %s: %s", userStringID, err.Error())
+						return
+					}
 				}
 			}
 
-			log.Printf("Assigning label to a pod %s", pod.GetName())
-			labelStr, _ := json.Marshal([]map[string]string{map[string]string{"op": "add", "path": "/metadata/labels/bigdipa_user", "value": userStringID}})
-			clientset.Pods("default").Patch(pod.GetName(), types.JSONPatchType, labelStr, "")
-
-			_, err = clientset.Services("default").Create(&v1.Service{
-				ObjectMeta: metav1.ObjectMeta{Name: userStringID + "-jupyter"},
-				Spec: v1.ServiceSpec{
-					Type:  v1.ServiceTypeNodePort,
-					Ports: []v1.ServicePort{v1.ServicePort{Port: 8888}},
-					Selector: map[string]string{
-						"set-component": pod.Name,
-					},
-				},
-			})
-
-			if err != nil {
-				log.Printf("Error creating the service: %s", err.Error())
-			} else {
-				log.Printf("Assigned service %s to user %s", userStringID+"-jupyter", userStringID)
-			}
 		}
 	}()
 
