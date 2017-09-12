@@ -42,8 +42,6 @@ spec:
         volumeMounts:
         - name: config-volume
           mountPath: /config
-      nodeSelector:
-        routable: "true"
       volumes:
       - name: config-volume
         configMap:
