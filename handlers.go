@@ -236,7 +236,7 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 			},
 			Spec: v1.ServiceSpec{
 				Type:  v1.ServiceTypeNodePort,
-				Ports: []v1.ServicePort{v1.ServicePort{Port: 8888}},
+				Ports: []v1.ServicePort{v1.ServicePort{Port: 443}},
 				Selector: map[string]string{
 					"bigdipa_user": userStringID,
 				},

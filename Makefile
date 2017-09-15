@@ -20,4 +20,4 @@ builddevdocker:
 builddevrelease: buildgo builddevdocker pushdocker cleanup
 
 pushconfig:
-	kubectl create configmap portal-config --from-file=config.toml -n kube-system
+	kubectl create configmap portal-config --from-file=config.toml=config_suncave.toml -n kube-system

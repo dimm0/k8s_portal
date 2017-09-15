@@ -100,7 +100,7 @@ func MarkFreePod(userStringID string) (*v1.Pod, error) {
 func ScaleSet() error {
 	scaleMutex.Lock()
 	defer scaleMutex.Unlock()
-	depl, err := clientset.AppsV1beta1().StatefulSets("default").Get("bigdipa", metav1.GetOptions{})
+	depl, err := clientset.AppsV1beta1().Deployments("default").Get("bigdipa", metav1.GetOptions{})
 	if err != nil {
 		return err
 	}
@@ -109,12 +109,12 @@ func ScaleSet() error {
 
 	scaleStr, _ := json.Marshal([]map[string]string{map[string]string{"op": "replace", "path": "/spec/replicas", "value": fmt.Sprintf("%d", wantReplicas)}})
 
-	clientset.AppsV1beta1().StatefulSets("default").Patch("bigdipa", types.JSONPatchType, scaleStr, "")
+	clientset.AppsV1beta1().Deployments("default").Patch("bigdipa", types.JSONPatchType, scaleStr, "")
 
 	for depl.Status.ReadyReplicas < wantReplicas {
 		log.Printf("Waiting for replicas to increase %d\n", depl.Status.ReadyReplicas)
 		time.Sleep(time.Second * 5)
-		depl, err = clientset.AppsV1beta1().StatefulSets("default").Get("bigdipa", metav1.GetOptions{})
+		depl, err = clientset.AppsV1beta1().Deployments("default").Get("bigdipa", metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
