@@ -7,7 +7,6 @@ import (
 	"regexp"
 	"strings"
 	"sync"
-	"time"
 
 	"k8s.io/api/core/v1"
 
@@ -89,10 +88,12 @@ func MarkFreePod(userStringID string) (*v1.Pod, error) {
 		return nil, err
 	}
 	for _, pod := range pods.Items {
-		log.Printf("Assigning label to a pod %s", pod.GetName())
-		labelStr, _ := json.Marshal([]map[string]string{map[string]string{"op": "add", "path": "/metadata/labels/bigdipa_user", "value": userStringID}})
-		clientset.Pods("default").Patch(pod.GetName(), types.JSONPatchType, labelStr, "")
-		return &pod, nil
+		if pod.Status.Phase == v1.PodRunning {
+			log.Printf("Assigning label to a pod %s", pod.GetName())
+			labelStr, _ := json.Marshal([]map[string]string{map[string]string{"op": "add", "path": "/metadata/labels/bigdipa_user", "value": userStringID}})
+			clientset.Pods("default").Patch(pod.GetName(), types.JSONPatchType, labelStr, "")
+			return &pod, nil
+		}
 	}
 	return nil, nil
 }
@@ -110,14 +111,5 @@ func ScaleSet() error {
 	scaleStr, _ := json.Marshal([]map[string]string{map[string]string{"op": "replace", "path": "/spec/replicas", "value": fmt.Sprintf("%d", wantReplicas)}})
 
 	clientset.AppsV1beta1().Deployments("default").Patch("bigdipa", types.JSONPatchType, scaleStr, "")
-
-	for depl.Status.ReadyReplicas < wantReplicas {
-		log.Printf("Waiting for replicas to increase %d\n", depl.Status.ReadyReplicas)
-		time.Sleep(time.Second * 5)
-		depl, err = clientset.AppsV1beta1().Deployments("default").Get("bigdipa", metav1.GetOptions{})
-		if err != nil {
-			return err
-		}
-	}
 	return nil
 }
