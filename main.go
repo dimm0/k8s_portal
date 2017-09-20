@@ -22,6 +22,7 @@ import (
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 var config oauth2.Config
+var pubconfig oauth2.Config
 var provider *oidc.Provider
 var clientset *kubernetes.Clientset
 var filestore *sessions.FilesystemStore
@@ -67,7 +68,7 @@ func main() {
 		ClientSecret: viper.GetString("client_secret"),
 		Endpoint:     provider.Endpoint(),
 		RedirectURL:  viper.GetString("redirect_url"),
-		Scopes:       []string{oidc.ScopeOpenID, "profile", "email", "org.cilogon.userinfo", "edu.uiuc.ncsa.myproxy.getcert"},
+		Scopes:       []string{oidc.ScopeOpenID, "profile", "email", "org.cilogon.userinfo"},
 	}
 
 	// oidcConfig := &oidc.Config{
@@ -108,7 +109,7 @@ func main() {
 			defer statesLock.Unlock()
 			delete(states, newState)
 		}()
-		http.Redirect(w, r, config.AuthCodeURL(newState), http.StatusFound)
+		http.Redirect(w, r, pubconfig.AuthCodeURL(newState), http.StatusFound)
 	})
 
 	http.HandleFunc("/auth", func(w http.ResponseWriter, r *http.Request) {

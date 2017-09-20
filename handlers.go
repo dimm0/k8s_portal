@@ -206,7 +206,12 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	handleState()
 
-	oauth2Token, err := config.Exchange(r.Context(), r.URL.Query().Get("code"))
+	curConfig := config
+	if stateVal == "config" {
+		curConfig = pubconfig
+	}
+
+	oauth2Token, err := curConfig.Exchange(r.Context(), r.URL.Query().Get("code"))
 	if err != nil {
 		http.Error(w, "Failed to exchange token: "+err.Error()+" for code "+r.URL.Query().Get("code"), http.StatusInternalServerError)
 		return
@@ -308,8 +313,8 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 					Config: map[string]string{
 						"id-token":       oauth2Token.Extra("id_token").(string),
 						"refresh-token":  oauth2Token.RefreshToken,
-						"client-id":      viper.GetString("client_id"),
-						"client-secret":  viper.GetString("client_secret"),
+						"client-id":      viper.GetString("pub_client_id"),
+						"client-secret":  viper.GetString("pub_client_secret"),
 						"idp-issuer-url": viper.GetString("issuer"),
 					},
 				},
