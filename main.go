@@ -71,6 +71,14 @@ func main() {
 		Scopes:       []string{oidc.ScopeOpenID, "profile", "email", "org.cilogon.userinfo"},
 	}
 
+	pubconfig = oauth2.Config{
+		ClientID:     viper.GetString("pub_client_id"),
+		ClientSecret: viper.GetString("pub_client_secret"),
+		Endpoint:     provider.Endpoint(),
+		RedirectURL:  viper.GetString("redirect_url"),
+		Scopes:       []string{oidc.ScopeOpenID},
+	}
+
 	// oidcConfig := &oidc.Config{
 	// 	ClientID: viper.GetString("client_id"),
 	// }
