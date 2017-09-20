@@ -223,59 +223,59 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userNamespace := getUserNamespace(userInfo)
-
-	if _, err := clientset.Core().Namespaces().Get(userNamespace, metav1.GetOptions{}); err != nil {
-		clientset.Core().Namespaces().Create(&v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: userNamespace}})
-	}
-
 	userID := viper.GetString("issuer") + "#" + userInfo.Subject
-
-	binding, err := clientset.Rbac().RoleBindings(userNamespace).Get("cilogon", metav1.GetOptions{})
-	if err != nil {
-		binding, err = clientset.Rbac().RoleBindings(userNamespace).Create(&rbacv1beta1.RoleBinding{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "cilogon",
-			},
-			RoleRef: rbacv1beta1.RoleRef{
-				APIGroup: "rbac.authorization.k8s.io",
-				Kind:     "ClusterRole",
-				Name:     "cilogon-edit",
-			},
-			Subjects: []rbacv1beta1.Subject{rbacv1beta1.Subject{Kind: "User", APIGroup: "rbac.authorization.k8s.io", Name: userID}},
-		})
-		if err != nil {
-			log.Printf("Error creating userbinding %s\n", err.Error())
-		}
-	} else {
-		found := false
-		for _, subj := range binding.Subjects {
-			if subj.Name == userID {
-				found = true
-			}
-		}
-
-		if !found {
-			newUser := UserPatchJson{}
-			newUser.Op = "add"
-			newUser.Path = "/subjects/-"
-			newUser.Value.Kind = "User"
-			newUser.Value.Name = userID
-			newUser.Value.ApiGroup = "rbac.authorization.k8s.io"
-			userStr, _ := json.Marshal([]UserPatchJson{newUser})
-			log.Printf("Doing patch %s", userStr)
-
-			patchres, err := clientset.Rbac().RoleBindings(userNamespace).Patch("cilogon", types.JSONPatchType, userStr, "")
-			if err != nil {
-				log.Printf("Error doing patch %s\n", err.Error())
-			} else {
-				log.Printf("Success doing patch %v\n", patchres)
-			}
-		}
-	}
 
 	switch stateVal {
 	case "auth":
+		userNamespace := getUserNamespace(userInfo)
+
+		if _, err := clientset.Core().Namespaces().Get(userNamespace, metav1.GetOptions{}); err != nil {
+			clientset.Core().Namespaces().Create(&v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: userNamespace}})
+		}
+
+		binding, err := clientset.Rbac().RoleBindings(userNamespace).Get("cilogon", metav1.GetOptions{})
+		if err != nil {
+			binding, err = clientset.Rbac().RoleBindings(userNamespace).Create(&rbacv1beta1.RoleBinding{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "cilogon",
+				},
+				RoleRef: rbacv1beta1.RoleRef{
+					APIGroup: "rbac.authorization.k8s.io",
+					Kind:     "ClusterRole",
+					Name:     "cilogon-edit",
+				},
+				Subjects: []rbacv1beta1.Subject{rbacv1beta1.Subject{Kind: "User", APIGroup: "rbac.authorization.k8s.io", Name: userID}},
+			})
+			if err != nil {
+				log.Printf("Error creating userbinding %s\n", err.Error())
+			}
+		} else {
+			found := false
+			for _, subj := range binding.Subjects {
+				if subj.Name == userID {
+					found = true
+				}
+			}
+
+			if !found {
+				newUser := UserPatchJson{}
+				newUser.Op = "add"
+				newUser.Path = "/subjects/-"
+				newUser.Value.Kind = "User"
+				newUser.Value.Name = userID
+				newUser.Value.ApiGroup = "rbac.authorization.k8s.io"
+				userStr, _ := json.Marshal([]UserPatchJson{newUser})
+				log.Printf("Doing patch %s", userStr)
+
+				patchres, err := clientset.Rbac().RoleBindings(userNamespace).Patch("cilogon", types.JSONPatchType, userStr, "")
+				if err != nil {
+					log.Printf("Error doing patch %s\n", err.Error())
+				} else {
+					log.Printf("Success doing patch %v\n", patchres)
+				}
+			}
+		}
+
 		session.Values["userid"] = userInfo.Email
 		session.Values["namespace"] = userNamespace
 		if e := session.Save(r, w); e != nil {
@@ -304,7 +304,7 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 				"calit2": &api.Context{
 					Cluster:   "calit2",
 					AuthInfo:  userInfo.Subject,
-					Namespace: userNamespace,
+					Namespace: session.Values["namespace"].(string),
 				},
 			},
 			AuthInfos: map[string]*api.AuthInfo{userInfo.Subject: {
