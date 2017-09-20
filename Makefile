@@ -10,7 +10,7 @@ pushdocker:
 	gcloud docker -- push us.gcr.io/prp-k8s/oidc-auth
 
 cleanup:
-	rm k8s_oidc
+	rm k8s_portal
 
 buildrelease: buildgo builddocker pushdocker cleanup
 
