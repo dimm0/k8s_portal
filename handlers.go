@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"regexp"
@@ -14,6 +13,7 @@ import (
 
 	oidc "github.com/coreos/go-oidc"
 	"github.com/gorilla/sessions"
+	"k8s.io/client-go/tools/clientcmd/api"
 	clientcmdlatest "k8s.io/client-go/tools/clientcmd/api/latest"
 
 	"github.com/spf13/viper"
@@ -23,7 +23,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/clientcmd/api"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 //keep config file to be requested later by JS
@@ -217,13 +217,29 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	oidcConfig := &oidc.Config{
+		ClientID: curConfig.ClientID,
+	}
+	verifier := provider.Verifier(oidcConfig)
+
+	idToken, err := verifier.Verify(r.Context(), oauth2Token.Extra("id_token").(string))
+	if err != nil {
+		http.Error(w, "Failed to verify ID Token: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	userInfo, err := provider.UserInfo(r.Context(), oauth2.StaticTokenSource(oauth2Token))
 	if err != nil {
 		http.Error(w, "Failed to get userinfo: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+	userID := idToken.Issuer + "#" + idToken.Subject
 
-	userID := viper.GetString("issuer") + "#" + userInfo.Subject
+	clusterInfoConfig, err := clientset.ConfigMaps("kube-public").Get("cluster-info", metav1.GetOptions{})
+	if err != nil {
+		http.Error(w, "Failed to get cluster config: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	switch stateVal {
 	case "auth":
@@ -285,44 +301,32 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Saved session")
 		http.Redirect(w, r, "/", http.StatusFound)
 	case "config":
-		dat, err := ioutil.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/ca.crt")
-		if err != nil {
-			http.Error(w, "Failed to get ca cert: "+err.Error(), http.StatusInternalServerError)
-			return
+		co, err := clientcmd.Load([]byte(clusterInfoConfig.Data["kubeconfig"]))
+		clust := *co.Clusters[""]
+		co.Clusters[viper.GetString("cluster_name")] = &clust
+		delete(co.Clusters, "")
+		co.Contexts = map[string]*api.Context{
+			viper.GetString("cluster_name"): &api.Context{
+				Cluster:   viper.GetString("cluster_name"),
+				AuthInfo:  userInfo.Subject,
+				Namespace: session.Values["namespace"].(string),
+			},
 		}
-
-		log.Printf("Got token: %v", oauth2Token)
-		co := api.Config{
-			APIVersion: "v1",
-			Clusters: map[string]*api.Cluster{
-				"calit2": &api.Cluster{
-					CertificateAuthorityData: dat,
-					Server: viper.GetString("kubernetes_server"),
+		co.AuthInfos = map[string]*api.AuthInfo{userInfo.Subject: {
+			AuthProvider: &api.AuthProviderConfig{
+				Name: "oidc",
+				Config: map[string]string{
+					"id-token":       oauth2Token.Extra("id_token").(string),
+					"refresh-token":  oauth2Token.RefreshToken,
+					"client-id":      viper.GetString("pub_client_id"),
+					"client-secret":  viper.GetString("pub_client_secret"),
+					"idp-issuer-url": idToken.Issuer,
 				},
 			},
-			Contexts: map[string]*api.Context{
-				"calit2": &api.Context{
-					Cluster:   "calit2",
-					AuthInfo:  userInfo.Subject,
-					Namespace: session.Values["namespace"].(string),
-				},
-			},
-			AuthInfos: map[string]*api.AuthInfo{userInfo.Subject: {
-				AuthProvider: &api.AuthProviderConfig{
-					Name: "oidc",
-					Config: map[string]string{
-						"id-token":       oauth2Token.Extra("id_token").(string),
-						"refresh-token":  oauth2Token.RefreshToken,
-						"client-id":      viper.GetString("pub_client_id"),
-						"client-secret":  viper.GetString("pub_client_secret"),
-						"idp-issuer-url": viper.GetString("issuer"),
-					},
-				},
-			}},
-			CurrentContext: "calit2",
-		}
+		}}
+		co.CurrentContext = viper.GetString("cluster_name")
 
-		data, err := runtime.Encode(clientcmdlatest.Codec, &co)
+		data, err := runtime.Encode(clientcmdlatest.Codec, co)
 		if err == nil {
 			newId := randStringBytes(16)
 			keysLock.Lock()

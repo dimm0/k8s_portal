@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"path"
 	"time"
 
 	"k8s.io/client-go/kubernetes"
@@ -51,15 +52,18 @@ func main() {
 	viper.SetConfigName("config")
 	viper.AddConfigPath("config")
 
+	viper.SetDefault("cluster_name", "kubernetes")
+	viper.SetDefault("storage_path", "/")
+
 	err := viper.ReadInConfig()
 	if err != nil {
 		panic(fmt.Errorf("fatal error config file: %s", err))
 	}
 
-	os.Mkdir("/sessions", 0777)
-	filestore = sessions.NewFilesystemStore("/sessions", []byte(viper.GetString("sessionAuthKey")), []byte(viper.GetString("sessionEncKey")))
+	os.Mkdir(path.Join(viper.GetString("storage_path"), "sessions"), 0777)
+	filestore = sessions.NewFilesystemStore(path.Join(viper.GetString("storage_path"), "sessions"), []byte(viper.GetString("session_auth_key")), []byte(viper.GetString("session_enc_key")))
 
-	provider, err = oidc.NewProvider(ctx, "https://test.cilogon.org")
+	provider, err = oidc.NewProvider(ctx, viper.GetString("oidc_provider"))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -67,7 +71,7 @@ func main() {
 		ClientID:     viper.GetString("client_id"),
 		ClientSecret: viper.GetString("client_secret"),
 		Endpoint:     provider.Endpoint(),
-		RedirectURL:  viper.GetString("redirect_url"),
+		RedirectURL:  viper.GetString("cluster_url") + "/callback",
 		Scopes:       []string{oidc.ScopeOpenID, "profile", "email", "org.cilogon.userinfo"},
 	}
 
@@ -75,14 +79,9 @@ func main() {
 		ClientID:     viper.GetString("pub_client_id"),
 		ClientSecret: viper.GetString("pub_client_secret"),
 		Endpoint:     provider.Endpoint(),
-		RedirectURL:  viper.GetString("redirect_url"),
+		RedirectURL:  viper.GetString("cluster_url") + "/callback",
 		Scopes:       []string{oidc.ScopeOpenID},
 	}
-
-	// oidcConfig := &oidc.Config{
-	// 	ClientID: viper.GetString("client_id"),
-	// }
-	// verifier := provider.Verifier(oidcConfig)
 
 	k8sconfig, err := rest.InClusterConfig()
 	if err != nil {

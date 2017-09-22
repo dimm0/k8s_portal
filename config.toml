@@ -1,9 +1,10 @@
 client_id=""
 client_secret=""
-kubernetes_server="https://67.58.53.146:6443"
-redirect_url="https://k8s.optiputer.net/callback"
-issuer="https://test.cilogon.org"
-cluster_url="http://k8s.optiputer.net"
+pub_client_id=""
+pub_client_secret=""
+oidc_provider="https://cilogon.org"
+cluster_url="https://k8s.example.com"
+cluster_name="kubernetes"
 
-sessionAuthKey=""
-sessionEncKey=""
+session_auth_key="" # 32 byte random string
+session_enc_key="" # 32 byte random string
