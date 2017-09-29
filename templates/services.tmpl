@@ -1,12 +1,18 @@
 {{define "body"}}
   <div class="container" style="padding-top: 16em">
       <div class="jumbotron">
-          <div class="text-center">
-              <p class="lead">Monitoring: <a href="{{.GrafanaUrl}}">{{.GrafanaUrl}}</a></p>
-          </div>
-          <div class="text-center">
-              <p class="lead">Pods running in your namespace: {{.Pods}}</p>
-          </div>
+        <div class="text-center">
+            <p class="lead">Monitoring: <a href="{{.GrafanaUrl}}">{{.GrafanaUrl}}</a></p>
+        </div>
+        <div class="text-center">
+            <p class="lead">Perfsonar: <a href="{{.PerfsonarUrl}}/toolkit/">{{.PerfsonarUrl}}/toolkit/</a></p>
+        </div>
+        <div class="text-center">
+            <p class="lead">Maddash: <a href="{{.PerfsonarUrl}}/maddash-webui/index.cgi?dashboard=K8s%20Mesh%20Config">{{.PerfsonarUrl}}/maddash-webui/index.cgi?dashboard=K8s%20Mesh%20Config</a></p>
+        </div>
+        <div class="text-center">
+            <p class="lead">Pods running in your namespace: {{.Pods}}</p>
+        </div>
       </div>
   </div>
 {{end}}

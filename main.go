@@ -71,7 +71,7 @@ func main() {
 		ClientID:     viper.GetString("client_id"),
 		ClientSecret: viper.GetString("client_secret"),
 		Endpoint:     provider.Endpoint(),
-		RedirectURL:  viper.GetString("cluster_url") + "/callback",
+		RedirectURL:  "https://" + viper.GetString("cluster_url") + "/callback",
 		Scopes:       []string{oidc.ScopeOpenID, "profile", "email", "org.cilogon.userinfo"},
 	}
 
@@ -79,7 +79,7 @@ func main() {
 		ClientID:     viper.GetString("pub_client_id"),
 		ClientSecret: viper.GetString("pub_client_secret"),
 		Endpoint:     provider.Endpoint(),
-		RedirectURL:  viper.GetString("cluster_url") + "/callback",
+		RedirectURL:  "https://" + viper.GetString("cluster_url") + "/callback",
 		Scopes:       []string{oidc.ScopeOpenID},
 	}
 

@@ -50,8 +50,9 @@ type ConfigTemplateVars struct {
 
 type ServicesTemplateVars struct {
 	IndexTemplateVars
-	Pods       []string
-	GrafanaUrl string
+	Pods         []string
+	GrafanaUrl   string
+	PerfsonarUrl string
 }
 
 func buildIndexTemplateVars(session *sessions.Session) IndexTemplateVars {
@@ -156,7 +157,19 @@ func ServicesHandler(w http.ResponseWriter, r *http.Request) {
 	} else {
 		for _, port := range grafanaService.Spec.Ports {
 			if port.NodePort > 30000 {
-				grafanaURL = fmt.Sprintf("%s:%d", viper.GetString("cluster_url"), port.NodePort)
+				grafanaURL = fmt.Sprintf("http://%s:%d", viper.GetString("cluster_url"), port.NodePort)
+			}
+		}
+	}
+
+	perfsonarURL := "Not found"
+	perfsonarService, err := clientset.Services("perfsonar").Get("perfsonar-toolkit", metav1.GetOptions{})
+	if err != nil {
+		log.Printf("Error getting Perfsonar service: %s", err.Error())
+	} else {
+		for _, port := range perfsonarService.Spec.Ports {
+			if port.NodePort > 30000 {
+				perfsonarURL = fmt.Sprintf("https://%s:%d", viper.GetString("cluster_url"), port.NodePort)
 			}
 		}
 	}
@@ -165,7 +178,7 @@ func ServicesHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.Write([]byte(err.Error()))
 	} else {
-		err = t.Execute(w, ServicesTemplateVars{Pods: podsList, GrafanaUrl: grafanaURL, IndexTemplateVars: buildIndexTemplateVars(session)})
+		err = t.Execute(w, ServicesTemplateVars{Pods: podsList, GrafanaUrl: grafanaURL, PerfsonarUrl: perfsonarURL, IndexTemplateVars: buildIndexTemplateVars(session)})
 		if err != nil {
 			w.Write([]byte(err.Error()))
 		}

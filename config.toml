@@ -3,7 +3,7 @@ client_secret=""
 pub_client_id=""
 pub_client_secret=""
 oidc_provider="https://cilogon.org"
-cluster_url="https://k8s.example.com"
+cluster_url="k8s.example.com"
 cluster_name="kubernetes"
 
 session_auth_key="" # 32 byte random string
