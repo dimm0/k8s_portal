@@ -1,0 +1,26 @@
+{{define "body"}}
+  <div class="container">
+    Admin template
+    {{range $k, $v := .Namespace}}
+      <h3>{{$k}}</h3>
+      <table class="table table-striped">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Email</th>
+              <th>IsAdmin</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{range $v.User}}
+            <tr>
+              <td>{{.UserID}}</td>
+              <td>{{.Email}}</td>
+              <td>{{.IsAdmin}}</td>
+            </tr>
+            {{end}}
+          </tbody>
+        </table>
+    {{end}}
+  </div>
+{{end}}

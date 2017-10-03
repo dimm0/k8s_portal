@@ -10,7 +10,11 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vex-js/3.1.1/css/vex.min.css" integrity="sha256-vT3Ea/TUa31pD4JeYO4GMsAKW9PlqG9l8d33SLPIKaw=" crossorigin="anonymous" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vex-js/3.1.1/css/vex-theme-os.min.css" integrity="sha256-xK3QvNOCJ17izA2HaEC1oy9dKdEm8dbgTGZksqSllPQ=" crossorigin="anonymous" />
   {{template "page_css" .}}
-
+  <style type="text/css">
+    body {
+        padding-top: 65px;
+    }
+  </style>
 </head>
 
 <body>
@@ -27,15 +31,20 @@
               </li>
               {{end}}
               {{if .User.UserID}}
-              <li class="nav-item">
-                  <a class="nav-link" href="services">Services</a>
-              </li>
-              <li class="nav-item">
-                  <a class="nav-link" href="authConfig">Get config</a>
-              </li>
-              <li class="nav-item">
-                <a class="nav-link" href="logout">Log out {{.User.UserID}}</a>
-              </li>
+                {{if .User.IsAdmin}}
+                  <li class="nav-item">
+                      <a class="nav-link" href="admin">Admin</a>
+                  </li>
+                {{end}}
+                <li class="nav-item">
+                    <a class="nav-link" href="services">Services</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="authConfig">Get config</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="logout">Log out {{.User.Email}}</a>
+                </li>
               {{end}}
           </ul>
       </div>

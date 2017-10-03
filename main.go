@@ -63,6 +63,12 @@ func main() {
 	os.Mkdir(path.Join(viper.GetString("storage_path"), "sessions"), 0777)
 	filestore = sessions.NewFilesystemStore(path.Join(viper.GetString("storage_path"), "sessions"), []byte(viper.GetString("session_auth_key")), []byte(viper.GetString("session_enc_key")))
 
+	filestore.Options.Domain = viper.GetString("cluster_url")
+	filestore.Options.Secure = true
+	filestore.Options.Path = "/"
+	filestore.Options.MaxAge = 86400 * 7
+	filestore.Options.HttpOnly = true
+
 	provider, err = oidc.NewProvider(ctx, viper.GetString("oidc_provider"))
 	if err != nil {
 		log.Fatal(err)
@@ -137,6 +143,7 @@ func main() {
 
 	http.HandleFunc("/getConfig", GetConfigHandler)
 	http.HandleFunc("/callback", AuthenticateHandler)
+	http.HandleFunc("/admin", AdminHandler)
 	http.HandleFunc("/logout", LogoutHandler)
 
 	log.Printf("listening on http://%s/", "127.0.0.1")

@@ -6,11 +6,13 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"path"
 	"regexp"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/boltdb/bolt"
 	oidc "github.com/coreos/go-oidc"
 	"github.com/gorilla/sessions"
 	"k8s.io/client-go/tools/clientcmd/api"
@@ -36,7 +38,10 @@ var keysLock = sync.RWMutex{}
 var statesLock = sync.RWMutex{}
 
 type PrpUser struct {
-	UserID string
+	UserID  string
+	ISS     string
+	Email   string
+	IsAdmin bool
 }
 
 type IndexTemplateVars struct {
@@ -56,11 +61,25 @@ type ServicesTemplateVars struct {
 }
 
 func buildIndexTemplateVars(session *sessions.Session) IndexTemplateVars {
-	var userId string
+	returnVars := IndexTemplateVars{User: PrpUser{}}
 	if session.Values["userid"] != nil {
-		userId = session.Values["userid"].(string)
+		returnVars.User.UserID = session.Values["userid"].(string)
 	}
-	returnVars := IndexTemplateVars{User: PrpUser{UserID: userId}}
+	if session.Values["email"] != nil {
+		returnVars.User.Email = session.Values["email"].(string)
+	}
+
+	if session.Values["userid"] != nil {
+		admins, err := getClusterAdmins()
+		if err != nil {
+			log.Printf("Error getting the admins: %s", err.Error())
+		}
+
+		if val, ok := admins[session.Values["iss"].(string)+"#"+session.Values["userid"].(string)]; ok {
+			returnVars.User.IsAdmin = val
+		}
+	}
+
 	return returnVars
 }
 
@@ -125,6 +144,20 @@ func GetConfigHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func getClusterAdmins() (map[string]bool, error) {
+	var admins = map[string]bool{}
+	binding, err := clientset.Rbac().ClusterRoleBindings().Get("cilogon-admins", metav1.GetOptions{})
+
+	if err != nil {
+		return admins, err
+	}
+
+	for _, subj := range binding.Subjects {
+		admins[subj.Name] = true
+	}
+	return admins, err
+}
+
 //handles the http requests for get services
 func ServicesHandler(w http.ResponseWriter, r *http.Request) {
 
@@ -185,9 +218,9 @@ func ServicesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func getUserNamespace(userInfo *oidc.UserInfo) string {
+func getUserNamespace(email string) string {
 
-	userDomain := strings.Split(userInfo.Email, "@")[1]
+	userDomain := strings.Split(email, "@")[1]
 
 	reg, _ := regexp.Compile("[^a-zA-Z0-9-]+")
 	userNamespace := reg.ReplaceAllString(userDomain, "-")
@@ -256,7 +289,7 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 
 	switch stateVal {
 	case "auth":
-		userNamespace := getUserNamespace(userInfo)
+		userNamespace := getUserNamespace(userInfo.Email)
 
 		if _, err := clientset.Core().Namespaces().Get(userNamespace, metav1.GetOptions{}); err != nil {
 			clientset.Core().Namespaces().Create(&v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: userNamespace}})
@@ -305,13 +338,38 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		session.Values["userid"] = userInfo.Email
+		session.Values["email"] = userInfo.Email
+		session.Values["userid"] = userInfo.Subject
+		session.Values["iss"] = idToken.Issuer
 		session.Values["namespace"] = userNamespace
 		if e := session.Save(r, w); e != nil {
 			http.Error(w, "Failed to save session: "+e.Error(), http.StatusInternalServerError)
 			return
 		}
 		log.Printf("Saved session")
+
+		if db, err := bolt.Open(path.Join(viper.GetString("storage_path"), "users.db"), 0600, &bolt.Options{Timeout: 5 * time.Second}); err == nil {
+			defer db.Close()
+
+			if err = db.Update(func(tx *bolt.Tx) error {
+				b, err := tx.CreateBucketIfNotExists([]byte("Users"))
+				if err != nil {
+					return fmt.Errorf("create bucket: %s", err)
+				}
+
+				if buf, err := json.Marshal(PrpUser{Email: userInfo.Email, UserID: userInfo.Subject, ISS: idToken.Issuer}); err != nil {
+					return err
+				} else if err := b.Put([]byte(userInfo.Email), buf); err != nil {
+					return err
+				}
+				return nil
+			}); err != nil {
+				log.Printf("failed to update the users DB %s", err.Error())
+			}
+		} else {
+			log.Printf("failed to connect database %s", err.Error())
+		}
+
 		http.Redirect(w, r, "/", http.StatusFound)
 	case "config":
 		co, err := clientcmd.Load([]byte(clusterInfoConfig.Data["kubeconfig"]))
