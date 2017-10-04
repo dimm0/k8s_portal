@@ -27,7 +27,7 @@ func AdminHandler(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Error getting the session: %s", err.Error())
 	}
 
-	if session.IsNew || session.Values["userid"] == nil {
+	if session.IsNew || session.Values["email"] == nil {
 		http.Redirect(w, r, "/", http.StatusFound)
 		return
 	}

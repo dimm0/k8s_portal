@@ -41,6 +41,8 @@ type PrpUser struct {
 	UserID  string
 	ISS     string
 	Email   string
+	Name    string
+	IDP     string
 	IsAdmin bool
 }
 
@@ -62,20 +64,33 @@ type ServicesTemplateVars struct {
 
 func buildIndexTemplateVars(session *sessions.Session) IndexTemplateVars {
 	returnVars := IndexTemplateVars{User: PrpUser{}}
-	if session.Values["userid"] != nil {
-		returnVars.User.UserID = session.Values["userid"].(string)
-	}
-	if session.Values["email"] != nil {
-		returnVars.User.Email = session.Values["email"].(string)
+	if session.Values["email"] == nil {
+		return returnVars
 	}
 
-	if session.Values["userid"] != nil {
-		admins, err := getClusterAdmins()
-		if err != nil {
-			log.Printf("Error getting the admins: %s", err.Error())
+	if db, err := bolt.Open(path.Join(viper.GetString("storage_path"), "users.db"), 0600, &bolt.Options{Timeout: 5 * time.Second}); err == nil {
+		defer db.Close()
+
+		if err = db.View(func(tx *bolt.Tx) error {
+			b := tx.Bucket([]byte("Users"))
+
+			v := b.Get([]byte(session.Values["email"].(string)))
+			if err = json.Unmarshal(v, &returnVars.User); err != nil {
+				return err
+			}
+
+			return nil
+		}); err != nil {
+			log.Printf("failed to read the users DB %s", err.Error())
 		}
+	} else {
+		log.Printf("failed to connect database %s", err.Error())
+	}
 
-		if val, ok := admins[session.Values["iss"].(string)+"#"+session.Values["userid"].(string)]; ok {
+	if admins, err := getClusterAdmins(); err != nil {
+		log.Printf("Error getting the admins: %s", err.Error())
+	} else {
+		if val, ok := admins[returnVars.User.ISS+"#"+returnVars.User.UserID]; ok {
 			returnVars.User.IsAdmin = val
 		}
 	}
@@ -170,21 +185,19 @@ func ServicesHandler(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Error getting the session: %s", err.Error())
 	}
 
-	if session.IsNew {
+	if session.IsNew || session.Values["email"] == nil {
 		http.Redirect(w, r, "/", http.StatusFound)
 		return
 	}
 
 	var podsList []string
-	if session.Values["namespace"] != nil {
-		list, _ := clientset.Core().Pods(session.Values["namespace"].(string)).List(metav1.ListOptions{})
-		for _, pod := range list.Items {
-			podsList = append(podsList, pod.GetName())
-		}
+	list, _ := clientset.Core().Pods(getUserNamespace(session.Values["email"].(string))).List(metav1.ListOptions{})
+	for _, pod := range list.Items {
+		podsList = append(podsList, pod.GetName())
 	}
 
 	grafanaURL := "Not found"
-	grafanaService, err := clientset.Services("kube-system").Get("monitoring-grafana", metav1.GetOptions{})
+	grafanaService, err := clientset.Services("monitoring").Get("grafana", metav1.GetOptions{})
 	if err != nil {
 		log.Printf("Error getting Grafana service: %s", err.Error())
 	} else {
@@ -339,14 +352,19 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		session.Values["email"] = userInfo.Email
-		session.Values["userid"] = userInfo.Subject
-		session.Values["iss"] = idToken.Issuer
-		session.Values["namespace"] = userNamespace
 		if e := session.Save(r, w); e != nil {
 			http.Error(w, "Failed to save session: "+e.Error(), http.StatusInternalServerError)
 			return
 		}
 		log.Printf("Saved session")
+
+		var Claims struct {
+			Name string `json:"name"`
+			IDP  string `json:"idp_name"`
+		}
+		if err := userInfo.Claims(&Claims); err != nil {
+			log.Printf("Error getting userInfo from claims %s", err.Error())
+		}
 
 		if db, err := bolt.Open(path.Join(viper.GetString("storage_path"), "users.db"), 0600, &bolt.Options{Timeout: 5 * time.Second}); err == nil {
 			defer db.Close()
@@ -357,7 +375,7 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 					return fmt.Errorf("create bucket: %s", err)
 				}
 
-				if buf, err := json.Marshal(PrpUser{Email: userInfo.Email, UserID: userInfo.Subject, ISS: idToken.Issuer}); err != nil {
+				if buf, err := json.Marshal(PrpUser{Email: userInfo.Email, UserID: userInfo.Subject, Name: Claims.Name, IDP: Claims.IDP, ISS: idToken.Issuer}); err != nil {
 					return err
 				} else if err := b.Put([]byte(userInfo.Email), buf); err != nil {
 					return err
@@ -380,7 +398,7 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 			viper.GetString("cluster_name"): &api.Context{
 				Cluster:   viper.GetString("cluster_name"),
 				AuthInfo:  userInfo.Subject,
-				Namespace: session.Values["namespace"].(string),
+				Namespace: getUserNamespace(session.Values["email"].(string)),
 			},
 		}
 		co.AuthInfos = map[string]*api.AuthInfo{userInfo.Subject: {

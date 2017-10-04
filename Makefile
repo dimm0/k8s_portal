@@ -20,4 +20,5 @@ builddevdocker:
 builddevrelease: buildgo builddevdocker pushdocker cleanup
 
 pushconfig:
+	kubectl delete configmap portal-config -n kube-system
 	kubectl create configmap portal-config --from-file=config.toml=config_k8s.toml -n kube-system

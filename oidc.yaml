@@ -42,10 +42,18 @@ spec:
         volumeMounts:
         - name: config-volume
           mountPath: /config
+        - mountPath: "/storage"
+          name: "nfs"
+      nodeSelector:
+        core: "true"
       volumes:
       - name: config-volume
         configMap:
           name: portal-config
+      - name: nfs
+        nfs:
+          server: 67.58.53.150
+          path: "/Data/k8s-portal-nfs"
 ---
 kind: Service
 apiVersion: v1
