@@ -57,7 +57,7 @@ type ConfigTemplateVars struct {
 
 type ServicesTemplateVars struct {
 	IndexTemplateVars
-	Pods         []string
+	Pods         []v1.Pod
 	GrafanaUrl   string
 	PerfsonarUrl string
 }
@@ -190,12 +190,6 @@ func ServicesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var podsList []string
-	list, _ := clientset.Core().Pods(getUserNamespace(session.Values["email"].(string))).List(metav1.ListOptions{})
-	for _, pod := range list.Items {
-		podsList = append(podsList, pod.GetName())
-	}
-
 	grafanaURL := "Not found"
 	grafanaService, err := clientset.Services("monitoring").Get("grafana", metav1.GetOptions{})
 	if err != nil {
@@ -220,11 +214,13 @@ func ServicesHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	podsList, _ := clientset.Core().Pods(getUserNamespace(session.Values["email"].(string))).List(metav1.ListOptions{})
+
 	t, err := template.ParseFiles("templates/layout.tmpl", "templates/services.tmpl")
 	if err != nil {
 		w.Write([]byte(err.Error()))
 	} else {
-		err = t.Execute(w, ServicesTemplateVars{Pods: podsList, GrafanaUrl: grafanaURL, PerfsonarUrl: perfsonarURL, IndexTemplateVars: buildIndexTemplateVars(session)})
+		err = t.Execute(w, ServicesTemplateVars{Pods: podsList.Items, GrafanaUrl: grafanaURL, PerfsonarUrl: perfsonarURL, IndexTemplateVars: buildIndexTemplateVars(session)})
 		if err != nil {
 			w.Write([]byte(err.Error()))
 		}

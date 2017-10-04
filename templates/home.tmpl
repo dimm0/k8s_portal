@@ -4,8 +4,26 @@
       <div class="jumbotron">
           <div class="text-center">
               <h1 class="mt-5">Welcome to the PRP Kubernetes gateway</h1>
-              <p class="lead">Here you can get your kubectl settings and run some Jupyter notebooks on your institution's dedicated resources</p>
           </div>
+      </div>
+  </div>
+  {{end}}
+  {{if .User.UserID}}
+  <div class="container">
+      <div class="jumbotron">
+        <div class="container">
+          <div class="jumbotron">
+            <h3>PRP Kubernetes quick start</h3>  
+            <ol>
+            <li><a href="https://kubernetes.io/docs/tasks/tools/install-kubectl/">Install</a> the kubectl tool</li>
+            <li>Click the "Get Config" link on top and get your config file</li>
+              <li>Put the file to your &lt;home&gt;/.kube folder</li>
+              <li>Test kubectl can connect to the cluster: <code>kubectl get pods</code>. It's possible there are no pods in your namespace yet.</li>
+              <li>Run busybox container in your namespace: <code>kubectl run busybox -it --rm --image=busybox -- sh</code>. It will quit once you log out from the console.</li>
+              <li><a href="https://kubernetes.io/docs/tutorials/kubernetes-basics/deploy-intro/">Learn</a> more about kubernetes.</li>
+            </ol>
+          </div>
+        </div>
       </div>
   </div>
   {{end}}

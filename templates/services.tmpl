@@ -1,18 +1,29 @@
 {{define "body"}}
+  {{$grafana:= .GrafanaUrl}}
   <div class="container">
       <div class="jumbotron">
-        <div class="text-center">
-            <p class="lead">Monitoring: <a href="{{.GrafanaUrl}}">{{.GrafanaUrl}}</a></p>
-        </div>
-        <div class="text-center">
-            <p class="lead">Perfsonar: <a href="{{.PerfsonarUrl}}/toolkit/">{{.PerfsonarUrl}}/toolkit/</a></p>
-        </div>
-        <div class="text-center">
-            <p class="lead">Maddash: <a href="{{.PerfsonarUrl}}/maddash-webui/index.cgi?dashboard=K8s%20Mesh%20Config">{{.PerfsonarUrl}}/maddash-webui/index.cgi?dashboard=K8s%20Mesh%20Config</a></p>
-        </div>
-        <div class="text-center">
-            <p class="lead">Pods running in your namespace: {{.Pods}}</p>
-        </div>
-      </div>
+        <p class="lead">Monitoring: <a href="{{.GrafanaUrl}}">{{.GrafanaUrl}}</a></p>
+        <p class="lead">Perfsonar: <a href="{{.PerfsonarUrl}}/toolkit/">{{.PerfsonarUrl}}/toolkit/</a></p>
+        <p class="lead">Maddash: <a href="{{.PerfsonarUrl}}/maddash-webui/index.cgi?dashboard=K8s%20Mesh%20Config">{{.PerfsonarUrl}}/maddash-webui/index.cgi?dashboard=K8s%20Mesh%20Config</a></p>
+        <p class="lead">Pods running in your namespace:</p>
+        <table class="table table-striped">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {{range .Pods}}
+            <tr>
+              <td>{{.GetName}}</td>
+              <td>{{.Status.Phase}}</td>
+              <td><a href="{{$grafana}}/dashboard/db/pods?var-pod={{.GetName}}">Monitor</a></td>
+            </tr>
+            {{end}}
+          </tbody>
+        </table>
+    </div>
   </div>
 {{end}}
