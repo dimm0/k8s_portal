@@ -191,18 +191,7 @@ func ServicesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	grafanaURL := fmt.Sprintf("https://grafana.%s", viper.GetString("cluster_url"))
-
-	perfsonarURL := "Not found"
-	perfsonarService, err := clientset.Services("perfsonar").Get("perfsonar-toolkit", metav1.GetOptions{})
-	if err != nil {
-		log.Printf("Error getting Perfsonar service: %s", err.Error())
-	} else {
-		for _, port := range perfsonarService.Spec.Ports {
-			if port.NodePort > 30000 {
-				perfsonarURL = fmt.Sprintf("https://%s:%d", viper.GetString("cluster_url"), port.NodePort)
-			}
-		}
-	}
+	perfsonarURL := fmt.Sprintf("https://perfsonar.%s", viper.GetString("cluster_url"))
 
 	podsList, _ := clientset.Core().Pods(getUserNamespace(session.Values["email"].(string))).List(metav1.ListOptions{})
 
