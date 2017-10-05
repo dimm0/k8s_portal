@@ -60,6 +60,37 @@ type ServicesTemplateVars struct {
 	Pods         []v1.Pod
 	GrafanaUrl   string
 	PerfsonarUrl string
+	Namespace    string
+	Namespaces   []v1.Namespace
+}
+
+func getUser(email string) (PrpUser, error) {
+	var user PrpUser
+	if db, err := bolt.Open(path.Join(viper.GetString("storage_path"), "users.db"), 0600, &bolt.Options{Timeout: 5 * time.Second}); err == nil {
+		defer db.Close()
+
+		if err = db.View(func(tx *bolt.Tx) error {
+			b := tx.Bucket([]byte("Users"))
+
+			v := b.Get([]byte(email))
+			if err = json.Unmarshal(v, &user); err != nil {
+				return err
+			}
+
+			return nil
+		}); err != nil {
+			return user, err
+		}
+	}
+	if admins, err := getClusterAdmins(); err != nil {
+		log.Printf("Error getting the admins: %s", err.Error())
+	} else {
+		if val, ok := admins[user.ISS+"#"+user.UserID]; ok {
+			user.IsAdmin = val
+		}
+	}
+
+	return user, nil
 }
 
 func buildIndexTemplateVars(session *sessions.Session) IndexTemplateVars {
@@ -68,31 +99,10 @@ func buildIndexTemplateVars(session *sessions.Session) IndexTemplateVars {
 		return returnVars
 	}
 
-	if db, err := bolt.Open(path.Join(viper.GetString("storage_path"), "users.db"), 0600, &bolt.Options{Timeout: 5 * time.Second}); err == nil {
-		defer db.Close()
-
-		if err = db.View(func(tx *bolt.Tx) error {
-			b := tx.Bucket([]byte("Users"))
-
-			v := b.Get([]byte(session.Values["email"].(string)))
-			if err = json.Unmarshal(v, &returnVars.User); err != nil {
-				return err
-			}
-
-			return nil
-		}); err != nil {
-			log.Printf("failed to read the users DB %s", err.Error())
-		}
+	if user, err := getUser(session.Values["email"].(string)); err != nil {
+		log.Printf("Error getting the user: %s", err.Error())
 	} else {
-		log.Printf("failed to connect database %s", err.Error())
-	}
-
-	if admins, err := getClusterAdmins(); err != nil {
-		log.Printf("Error getting the admins: %s", err.Error())
-	} else {
-		if val, ok := admins[returnVars.User.ISS+"#"+returnVars.User.UserID]; ok {
-			returnVars.User.IsAdmin = val
-		}
+		returnVars.User = user
 	}
 
 	return returnVars
@@ -193,13 +203,29 @@ func ServicesHandler(w http.ResponseWriter, r *http.Request) {
 	grafanaURL := fmt.Sprintf("https://grafana.%s", viper.GetString("cluster_url"))
 	perfsonarURL := fmt.Sprintf("https://perfsonar.%s", viper.GetString("cluster_url"))
 
-	podsList, _ := clientset.Core().Pods(getUserNamespace(session.Values["email"].(string))).List(metav1.ListOptions{})
+	ns := getUserNamespace(session.Values["email"].(string))
+	nss := []v1.Namespace{}
+
+	if user, err := getUser(session.Values["email"].(string)); err == nil {
+		if user.IsAdmin {
+			nsList, _ := clientset.Namespaces().List(metav1.ListOptions{})
+			nss = nsList.Items
+			if r.URL.Query().Get("namespace") != "" {
+				ns = r.URL.Query().Get("namespace")
+			}
+		}
+	} else {
+		log.Printf("Error getting the user: %s", err.Error())
+	}
+
+	podsList, _ := clientset.Core().Pods(ns).List(metav1.ListOptions{})
+	stVars := ServicesTemplateVars{Pods: podsList.Items, Namespaces: nss, Namespace: ns, GrafanaUrl: grafanaURL, PerfsonarUrl: perfsonarURL, IndexTemplateVars: buildIndexTemplateVars(session)}
 
 	t, err := template.ParseFiles("templates/layout.tmpl", "templates/services.tmpl")
 	if err != nil {
 		w.Write([]byte(err.Error()))
 	} else {
-		err = t.Execute(w, ServicesTemplateVars{Pods: podsList.Items, GrafanaUrl: grafanaURL, PerfsonarUrl: perfsonarURL, IndexTemplateVars: buildIndexTemplateVars(session)})
+		err = t.Execute(w, stVars)
 		if err != nil {
 			w.Write([]byte(err.Error()))
 		}

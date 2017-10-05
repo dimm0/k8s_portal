@@ -1,11 +1,18 @@
 {{define "body"}}
   {{$grafana:= .GrafanaUrl}}
+  {{$ns:= .Namespace}}
   <div class="container">
       <div class="jumbotron">
         <p class="lead">Monitoring: <a href="{{.GrafanaUrl}}">{{.GrafanaUrl}}</a></p>
         <p class="lead">Perfsonar: <a href="{{.PerfsonarUrl}}/toolkit/">{{.PerfsonarUrl}}/toolkit/</a></p>
         <p class="lead">Maddash: <a href="{{.PerfsonarUrl}}/maddash-webui/index.cgi?dashboard=K8s%20Mesh%20Config">{{.PerfsonarUrl}}/maddash-webui/index.cgi?dashboard=K8s%20Mesh%20Config</a></p>
         <p class="lead">Pods running in your namespace:</p>
+        <select class="form-control" id="ns_sel" onchange="window.location.href='/services?namespace='+this.value">
+          <option value=""><i>User's default</i></option>
+          {{range .Namespaces}}
+            <option value="{{.GetName}}"{{if eq .GetName $ns}} selected{{end}}>{{.GetName}}</option>
+          {{end}}
+        </select>
         <table class="table table-striped">
           <thead>
             <tr>
@@ -18,12 +25,23 @@
             {{range .Pods}}
             <tr>
               <td>{{.GetName}}</td>
-              <td>{{.Status.Phase}}</td>
-              <td><a href="{{$grafana}}/dashboard/db/pods?var-pod={{.GetName}}">Monitor</a></td>
+              <td><span class="tt" {{if .Status.Reason}}title="{{.Status.Reason}}"{{end}}>{{.Status.Phase}}{{if .Status.Reason}} (!){{end}}</span></td>
+              <td><a href="{{$grafana}}/dashboard/db/pods?var-namespace={{$ns}}&amp;var-pod={{.GetName}}">Monitor</a></td>
             </tr>
             {{end}}
           </tbody>
         </table>
     </div>
   </div>
+{{end}}
+
+{{define "page_js"}}
+  <script src="https://unpkg.com/tippy.js/dist/tippy.min.js"></script>
+  <script type="text/javascript">
+    tippy('.tt')
+  </script>
+{{end}}
+
+{{define "page_css"}}
+  <link rel="stylesheet" href="https://unpkg.com/tippy.js/dist/tippy.css">
 {{end}}

@@ -2,7 +2,7 @@
   <div class="container">
     Admin template
     {{range $k, $v := .Namespace}}
-      <h3>{{$k}}</h3>
+      <h3><a href="/services?namespace={{$k}}">{{$k}}</a></h3>
       <table class="table table-striped">
           <thead>
             <tr>
