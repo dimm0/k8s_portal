@@ -190,17 +190,7 @@ func ServicesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	grafanaURL := "Not found"
-	grafanaService, err := clientset.Services("monitoring").Get("grafana", metav1.GetOptions{})
-	if err != nil {
-		log.Printf("Error getting Grafana service: %s", err.Error())
-	} else {
-		for _, port := range grafanaService.Spec.Ports {
-			if port.NodePort > 30000 {
-				grafanaURL = fmt.Sprintf("http://%s:%d", viper.GetString("cluster_url"), port.NodePort)
-			}
-		}
-	}
+	grafanaURL := fmt.Sprintf("https://grafana.%s", viper.GetString("cluster_url"))
 
 	perfsonarURL := "Not found"
 	perfsonarService, err := clientset.Services("perfsonar").Get("perfsonar-toolkit", metav1.GetOptions{})
