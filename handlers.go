@@ -64,7 +64,7 @@ type ServicesTemplateVars struct {
 	Namespaces   []v1.Namespace
 }
 
-func getUser(email string) (PrpUser, error) {
+func getUser(userid string) (PrpUser, error) {
 	var user PrpUser
 	if db, err := bolt.Open(path.Join(viper.GetString("storage_path"), "users.db"), 0600, &bolt.Options{Timeout: 5 * time.Second}); err == nil {
 		defer db.Close()
@@ -72,7 +72,7 @@ func getUser(email string) (PrpUser, error) {
 		if err = db.View(func(tx *bolt.Tx) error {
 			b := tx.Bucket([]byte("Users"))
 
-			v := b.Get([]byte(email))
+			v := b.Get([]byte(userid))
 			if err = json.Unmarshal(v, &user); err != nil {
 				return err
 			}
@@ -95,11 +95,11 @@ func getUser(email string) (PrpUser, error) {
 
 func buildIndexTemplateVars(session *sessions.Session) IndexTemplateVars {
 	returnVars := IndexTemplateVars{User: PrpUser{}}
-	if session.Values["email"] == nil {
+	if session.Values["userid"] == nil {
 		return returnVars
 	}
 
-	if user, err := getUser(session.Values["email"].(string)); err != nil {
+	if user, err := getUser(session.Values["userid"].(string)); err != nil {
 		log.Printf("Error getting the user: %s", err.Error())
 	} else {
 		returnVars.User = user
@@ -195,7 +195,7 @@ func ServicesHandler(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Error getting the session: %s", err.Error())
 	}
 
-	if session.IsNew || session.Values["email"] == nil {
+	if session.IsNew || session.Values["userid"] == nil {
 		http.Redirect(w, r, "/", http.StatusFound)
 		return
 	}
@@ -203,10 +203,11 @@ func ServicesHandler(w http.ResponseWriter, r *http.Request) {
 	grafanaURL := fmt.Sprintf("https://grafana.%s", viper.GetString("cluster_url"))
 	perfsonarURL := fmt.Sprintf("https://perfsonar.%s", viper.GetString("cluster_url"))
 
-	ns := getUserNamespace(session.Values["email"].(string))
+	var ns string
 	nss := []v1.Namespace{}
 
-	if user, err := getUser(session.Values["email"].(string)); err == nil {
+	if user, err := getUser(session.Values["userid"].(string)); err == nil {
+		ns = getUserNamespace(user.Email)
 		if user.IsAdmin {
 			nsList, _ := clientset.Namespaces().List(metav1.ListOptions{})
 			nss = nsList.Items
@@ -352,7 +353,7 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		session.Values["email"] = userInfo.Email
+		session.Values["userid"] = userInfo.Subject
 		if e := session.Save(r, w); e != nil {
 			http.Error(w, "Failed to save session: "+e.Error(), http.StatusInternalServerError)
 			return
@@ -378,7 +379,7 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 
 				if buf, err := json.Marshal(PrpUser{Email: userInfo.Email, UserID: userInfo.Subject, Name: Claims.Name, IDP: Claims.IDP, ISS: idToken.Issuer}); err != nil {
 					return err
-				} else if err := b.Put([]byte(userInfo.Email), buf); err != nil {
+				} else if err := b.Put([]byte(userInfo.Subject), buf); err != nil {
 					return err
 				}
 				return nil
@@ -399,7 +400,7 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 			viper.GetString("cluster_name"): &api.Context{
 				Cluster:   viper.GetString("cluster_name"),
 				AuthInfo:  userInfo.Subject,
-				Namespace: getUserNamespace(session.Values["email"].(string)),
+				Namespace: getUserNamespace(userInfo.Email),
 			},
 		}
 		co.AuthInfos = map[string]*api.AuthInfo{userInfo.Subject: {

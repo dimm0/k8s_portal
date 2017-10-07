@@ -7,12 +7,14 @@
         <p class="lead">Perfsonar: <a href="{{.PerfsonarUrl}}/toolkit/">{{.PerfsonarUrl}}/toolkit/</a></p>
         <p class="lead">Maddash: <a href="{{.PerfsonarUrl}}/maddash-webui/index.cgi?dashboard=K8s%20Mesh%20Config">{{.PerfsonarUrl}}/maddash-webui/index.cgi?dashboard=K8s%20Mesh%20Config</a></p>
         <p class="lead">Pods running in your namespace:</p>
+        {{if .User.IsAdmin}}
         <select class="form-control" id="ns_sel" onchange="window.location.href='/services?namespace='+this.value">
           <option value=""><i>User's default</i></option>
           {{range .Namespaces}}
             <option value="{{.GetName}}"{{if eq .GetName $ns}} selected{{end}}>{{.GetName}}</option>
           {{end}}
         </select>
+        {{end}}
         <table class="table table-striped">
           <thead>
             <tr>

@@ -13,7 +13,7 @@
       <div class="jumbotron">
         <div class="container">
           <div class="jumbotron">
-            <h3>PRP Kubernetes quick start</h3>  
+            <h3>PRP Kubernetes quick start</h3>
             <ol>
             <li><a href="https://kubernetes.io/docs/tasks/tools/install-kubectl/">Install</a> the kubectl tool</li>
             <li>Click the "Get Config" link on top and get your config file</li>
@@ -22,9 +22,36 @@
               <li>Run busybox container in your namespace: <code>kubectl run busybox -it --rm --image=busybox -- sh</code>. It will quit once you log out from the console.</li>
               <li><a href="https://kubernetes.io/docs/tutorials/kubernetes-basics/deploy-intro/">Learn</a> more about kubernetes.</li>
             </ol>
+
+            <h5>Running GPU PODs</h5>
+            <p>Use the <a href="https://github.com/dimm0/prp_k8s_config/blob/master/tensorflow-example.yaml">tensorflow example POD</a> definition to create your own pod and deploy it to kubernetes.</p>
+            <p>You can try running this example in your namespace with:
+              <div><code>kubectl create -f https://raw.githubusercontent.com/dimm0/prp_k8s_config/master/tensorflow-example.yaml</code></div>
+            <br/>
+            <p>and destroy with</p>
+            <div><code>kubectl delete -f https://raw.githubusercontent.com/dimm0/prp_k8s_config/master/tensorflow-example.yaml</code></div><br/>
+            This example requests 1 GPU device. You can have up to 8 per node.
+            Currently we have 3 nodes set up for GPUs:
+            <ul>
+              <li>k8s-gpu-01.calit2.optiputer.net</li>
+              <li>k8s-gpu-02.calit2.optiputer.net</li>
+              <li>fiona8.calit2.uci.edu</li>
+            </ul>
+            If you request GPU devices in your POD, kubernetes will auto schedule your pod to the appropriate node. There's no need to specify location manually.
+            <br/>
+            <h5>Attaching Ceph blockdevice</h5>
+            <p>Use the <a href="https://github.com/dimm0/prp_k8s_config/blob/master/volume-example.yaml">volume example POD</a> definition to create your own pod with Ceph block volume attached.</p>
           </div>
         </div>
       </div>
   </div>
   {{end}}
+{{end}}
+
+{{define "page_css"}}
+<style type="text/css">
+  code {
+      word-wrap: break-word;
+  }
+</style>
 {{end}}
