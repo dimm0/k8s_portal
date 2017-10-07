@@ -396,11 +396,19 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 		clust := *co.Clusters[""]
 		co.Clusters[viper.GetString("cluster_name")] = &clust
 		delete(co.Clusters, "")
+
+		ns := "default"
+		if user, err := getUser(userInfo.Subject); err != nil {
+			log.Printf("Error getting the user: %s", err.Error())
+		} else {
+			ns = getUserNamespace(user.Email)
+		}
+
 		co.Contexts = map[string]*api.Context{
 			viper.GetString("cluster_name"): &api.Context{
 				Cluster:   viper.GetString("cluster_name"),
 				AuthInfo:  userInfo.Subject,
-				Namespace: getUserNamespace(userInfo.Email),
+				Namespace: ns,
 			},
 		}
 		co.AuthInfos = map[string]*api.AuthInfo{userInfo.Subject: {
