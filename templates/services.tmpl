@@ -3,9 +3,10 @@
   {{$ns:= .Namespace}}
   <div class="container">
       <div class="jumbotron">
-        <p class="lead">Monitoring: <a href="{{.GrafanaUrl}}">{{.GrafanaUrl}}</a></p>
-        <p class="lead">Perfsonar: <a href="{{.PerfsonarUrl}}/toolkit/">{{.PerfsonarUrl}}/toolkit/</a></p>
-        <p class="lead">Maddash: <a href="{{.PerfsonarUrl}}/maddash-webui/index.cgi?dashboard=K8s%20Mesh%20Config">{{.PerfsonarUrl}}/maddash-webui/index.cgi?dashboard=K8s%20Mesh%20Config</a></p>
+        <p class="lead">
+          <a class="btn btn-outline-primary" href="{{.GrafanaUrl}}">Monitoring</a>
+          <a class="btn btn-outline-primary" href="{{.PerfsonarUrl}}/maddash-webui">Maddash</a>
+        </p>
         <p class="lead">Pods running in your namespace:</p>
         {{if .User.IsAdmin}}
         <select class="form-control" id="ns_sel" onchange="window.location.href='/services?namespace='+this.value">
