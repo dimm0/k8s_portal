@@ -9,17 +9,15 @@
               <th>Name</th>
               <th>IDP</th>
               <th>Email</th>
-              <th>IsAdmin</th>
             </tr>
           </thead>
           <tbody>
             {{range $v.User}}
-            <tr>
+            <tr{{if .IsAdmin}} style="background-color:rgba(255, 179, 0, 0.18)"{{end}}>
               <td>{{.UserID}}</td>
               <td>{{.Name}}</td>
               <td>{{.IDP}}</td>
               <td>{{.Email}}</td>
-              <td>{{.IsAdmin}}</td>
             </tr>
             {{end}}
           </tbody>
