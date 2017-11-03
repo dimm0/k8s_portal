@@ -6,9 +6,10 @@
   <title>PRP K8S</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 
-  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta/css/bootstrap.min.css" integrity="sha384-/Y6pD6FV/Vv2HJnA6t+vslU6fwYXjCFtcEpHbNJ0lyAFsXTsjBbfaDjzALeQsN6M" crossorigin="anonymous">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vex-js/3.1.1/css/vex.min.css" integrity="sha256-vT3Ea/TUa31pD4JeYO4GMsAKW9PlqG9l8d33SLPIKaw=" crossorigin="anonymous" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vex-js/3.1.1/css/vex-theme-os.min.css" integrity="sha256-xK3QvNOCJ17izA2HaEC1oy9dKdEm8dbgTGZksqSllPQ=" crossorigin="anonymous" />
+  <link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta/css/bootstrap.min.css" integrity="sha384-/Y6pD6FV/Vv2HJnA6t+vslU6fwYXjCFtcEpHbNJ0lyAFsXTsjBbfaDjzALeQsN6M" crossorigin="anonymous">
+  <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/vex-js/3.1.1/css/vex.min.css" integrity="sha256-vT3Ea/TUa31pD4JeYO4GMsAKW9PlqG9l8d33SLPIKaw=" crossorigin="anonymous" />
+  <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/vex-js/3.1.1/css/vex-theme-os.min.css" integrity="sha256-xK3QvNOCJ17izA2HaEC1oy9dKdEm8dbgTGZksqSllPQ=" crossorigin="anonymous" />
+  <link href="//maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet" integrity="sha384-wvfXpqpZZVQGK6TAh5PVlGOfQNHSoD2xbE+QkPxCAFlNEevoEH3Sl0sibVcOQVnN" crossorigin="anonymous">
   {{template "page_css" .}}
   <style type="text/css">
     body {
@@ -41,8 +42,10 @@
                   <div class="dropdown-menu" aria-labelledby="services_drop">
                     <a class="dropdown-item" href="pods">Pods</a>
                     <a class="dropdown-item" href="nodes">Nodes</a>
-                    <a class="dropdown-item" href="//grafana.{{.ClusterUrl}}">Monitoring</a>
-                    <a class="dropdown-item" href="//perfsonar.{{.ClusterUrl}}/maddash-webui">Maddash</a>
+                    <a class="dropdown-item" href="//grafana.{{.ClusterUrl}}"><i class="fa fa-external-link" aria-hidden="true"></i> Monitoring</a>
+                    <a class="dropdown-item" href="//perfsonar.{{.ClusterUrl}}/maddash-webui"><i class="fa fa-external-link" aria-hidden="true"></i> Maddash</a>
+                    <a class="dropdown-item" href="//traceroute.{{.ClusterUrl}}"><i class="fa fa-external-link" aria-hidden="true"></i> Traceroute</a>
+                    <a class="dropdown-item" href="//webodm.{{.ClusterUrl}}"><i class="fa fa-external-link" aria-hidden="true"></i> WebODM</a>
                   </div>
                 </li>
                 <li class="nav-item">
