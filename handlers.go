@@ -49,7 +49,8 @@ type PrpUser struct {
 }
 
 type IndexTemplateVars struct {
-	User PrpUser
+	User       PrpUser
+	ClusterUrl string
 }
 
 type ConfigTemplateVars struct {
@@ -57,13 +58,16 @@ type ConfigTemplateVars struct {
 	ConfigId string
 }
 
-type ServicesTemplateVars struct {
+type PodsTemplateVars struct {
 	IndexTemplateVars
 	Pods       []v1.Pod
-	Nodes      []v1.Node
-	ClusterUrl string
 	Namespace  string
 	Namespaces []v1.Namespace
+}
+
+type NodesTemplateVars struct {
+	IndexTemplateVars
+	Nodes []v1.Node
 }
 
 func getUser(userid string) (PrpUser, error) {
@@ -96,7 +100,7 @@ func getUser(userid string) (PrpUser, error) {
 }
 
 func buildIndexTemplateVars(session *sessions.Session) IndexTemplateVars {
-	returnVars := IndexTemplateVars{User: PrpUser{}}
+	returnVars := IndexTemplateVars{User: PrpUser{}, ClusterUrl: viper.GetString("cluster_url")}
 	if session.Values["userid"] == nil {
 		return returnVars
 	}
@@ -185,8 +189,8 @@ func getClusterAdmins() (map[string]bool, error) {
 	return admins, err
 }
 
-//handles the http requests for get services
-func ServicesHandler(w http.ResponseWriter, r *http.Request) {
+//handles the http requests for get pods
+func PodsHandler(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method != "GET" {
 		return
@@ -220,9 +224,38 @@ func ServicesHandler(w http.ResponseWriter, r *http.Request) {
 
 	podsList, _ := clientset.Core().Pods(ns).List(metav1.ListOptions{})
 
+	stVars := PodsTemplateVars{Pods: podsList.Items, Namespaces: nss, Namespace: ns, IndexTemplateVars: buildIndexTemplateVars(session)}
+
+	t, err := template.New("layout.tmpl").ParseFiles("templates/layout.tmpl", "templates/pods.tmpl")
+	if err != nil {
+		w.Write([]byte(err.Error()))
+	} else {
+		err = t.ExecuteTemplate(w, "layout.tmpl", stVars)
+		if err != nil {
+			w.Write([]byte(err.Error()))
+		}
+	}
+}
+
+func NodesHandler(w http.ResponseWriter, r *http.Request) {
+
+	if r.Method != "GET" {
+		return
+	}
+
+	session, err := filestore.Get(r, "prp-session")
+	if err != nil {
+		log.Printf("Error getting the session: %s", err.Error())
+	}
+
+	if session.IsNew || session.Values["userid"] == nil {
+		http.Redirect(w, r, "/", http.StatusFound)
+		return
+	}
+
 	nodesList, _ := clientset.Core().Nodes().List(metav1.ListOptions{})
 
-	stVars := ServicesTemplateVars{Pods: podsList.Items, Nodes: nodesList.Items, Namespaces: nss, Namespace: ns, ClusterUrl: viper.GetString("cluster_url"), IndexTemplateVars: buildIndexTemplateVars(session)}
+	stVars := NodesTemplateVars{Nodes: nodesList.Items, IndexTemplateVars: buildIndexTemplateVars(session)}
 
 	t, err := template.New("layout.tmpl").Funcs(template.FuncMap{
 		"hostToIp": func(host string) string {
@@ -232,7 +265,7 @@ func ServicesHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			return ips[0].String()
 		},
-	}).ParseFiles("templates/layout.tmpl", "templates/services.tmpl")
+	}).ParseFiles("templates/layout.tmpl", "templates/nodes.tmpl")
 	if err != nil {
 		w.Write([]byte(err.Error()))
 	} else {

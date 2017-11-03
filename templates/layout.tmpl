@@ -36,8 +36,14 @@
                       <a class="nav-link" href="admin">Admin</a>
                   </li>
                 {{end}}
-                <li class="nav-item">
-                    <a class="nav-link" href="services">Services</a>
+                <li class="nav-item dropdown">
+                  <a class="nav-link dropdown-toggle" href="" id="services_drop" data-toggle="dropdown" aria-expanded="false">Services</a>
+                  <div class="dropdown-menu" aria-labelledby="services_drop">
+                    <a class="dropdown-item" href="pods">Pods</a>
+                    <a class="dropdown-item" href="nodes">Nodes</a>
+                    <a class="dropdown-item" href="//grafana.{{.ClusterUrl}}">Monitoring</a>
+                    <a class="dropdown-item" href="//perfsonar.{{.ClusterUrl}}/maddash-webui">Maddash</a>
+                  </div>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link" href="authConfig">Get config</a>

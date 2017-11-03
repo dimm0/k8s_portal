@@ -1,0 +1,83 @@
+{{define "body"}}
+  {{$cluster:= .ClusterUrl}}
+  <div class="container">
+      <div class="jumbotron">
+        <p class="lead">Cluster nodes:</p>
+          {{range .Nodes}}
+            {{$instance:= hostToIp .Name}}
+            <div>
+              <h4>
+                {{.Name}}
+                <a class="btn btn-outline-primary btn-sm" href="//grafana.k8s.optiputer.net/dashboard/db/nodes?var-server={{$instance}}:9100">Monitor</a>
+                <a class="btn btn-outline-primary btn-sm" href="//grafana.k8s.optiputer.net/dashboard/db/node-pods?var-server={{$instance}}">Monitor Pods</a>
+              </h4>
+              {{range .Status.Conditions}}
+                <span class="cond">{{.Type}}: {{.Status}}</span>
+              {{end}}
+              <p>
+                Load:
+                <span id="{{$instance}}:9100_1"></span>
+                <span id="{{$instance}}:9100_5"></span>
+                <span id="{{$instance}}:9100_15"></span>
+              </p>
+            </div>
+          {{end}}
+    </div>
+  </div>
+{{end}}
+
+{{define "page_js"}}
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/nanoajax/0.4.3/nanoajax.min.js" integrity="sha256-LD4kEAL733s6q/X0SmbSsdteoGaOe4ny63lfVruo1ng=" crossorigin="anonymous"></script>
+  <script type="text/javascript">
+    updateTop();
+    var intervalID = setInterval(updateTop, 5000);
+
+    function updateTop() {
+      nanoajax.ajax({url:'//prometheus.k8s.optiputer.net/api/v1/query?query=node_load1', responseType: 'json'}, function (code, responseText) {
+        if(responseText.status != "success") {
+          console.debug("Error querying: "+responseText.status);
+        } else {
+          var res = responseText.data.result;
+          for(var i=0; i<res.length; i++) {
+            document.getElementById(res[i].metric.instance+"_1").innerHTML=res[i].value[1];
+          }
+        }
+      })
+
+      nanoajax.ajax({url:'//prometheus.k8s.optiputer.net/api/v1/query?query=node_load5', responseType: 'json'}, function (code, responseText) {
+        if(responseText.status != "success") {
+          console.debug("Error querying: "+responseText.status);
+        } else {
+          var res = responseText.data.result;
+          for(var i=0; i<res.length; i++) {
+            document.getElementById(res[i].metric.instance+"_5").innerHTML=res[i].value[1];
+          }
+        }
+      })
+
+      nanoajax.ajax({url:'//prometheus.k8s.optiputer.net/api/v1/query?query=node_load15', responseType: 'json'}, function (code, responseText) {
+        if(responseText.status != "success") {
+          console.debug("Error querying: "+responseText.status);
+        } else {
+          var res = responseText.data.result;
+          for(var i=0; i<res.length; i++) {
+            document.getElementById(res[i].metric.instance+"_15").innerHTML=res[i].value[1];
+          }
+        }
+      })
+    }
+
+
+  </script>
+{{end}}
+
+{{define "page_css"}}
+  <style>
+    span.cond {
+      background: white;
+      padding: 3px;
+      border-radius: 3px;
+      font-size: 0.6em;
+    }
+  </style>
+{{end}}
