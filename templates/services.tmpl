@@ -1,11 +1,11 @@
 {{define "body"}}
-  {{$grafana:= .GrafanaUrl}}
+  {{$cluster:= .ClusterUrl}}
   {{$ns:= .Namespace}}
   <div class="container">
       <div class="jumbotron">
         <p class="lead">
-          <a class="btn btn-outline-primary" href="{{.GrafanaUrl}}">Monitoring</a>
-          <a class="btn btn-outline-primary" href="{{.PerfsonarUrl}}/maddash-webui">Maddash</a>
+          <a class="btn btn-outline-primary" href="//grafana.{{.ClusterUrl}}">Monitoring</a>
+          <a class="btn btn-outline-primary" href="//perfsonar.{{.ClusterUrl}}/maddash-webui">Maddash</a>
         </p>
         <p class="lead">Pods running in your namespace:</p>
         {{if .User.IsAdmin}}
@@ -28,12 +28,39 @@
             {{range .Pods}}
             <tr>
               <td>{{.GetName}}</td>
-              <td><span class="tt" {{if .Status.Reason}}title="{{.Status.Reason}}"{{end}}>{{.Status.Phase}}{{if .Status.Reason}} (!){{end}}</span></td>
-              <td><a href="{{$grafana}}/dashboard/db/pods?var-namespace={{$ns}}&amp;var-pod={{.GetName}}">Monitor</a></td>
+              <td><span class="tt" {{if .Status.Message}}title="{{.Status.Message}}"{{end}}>{{.Status.Phase}}{{if .Status.Reason}} (!){{end}}</span></td>
+              <td><a class="btn btn-outline-primary" href="//grafana.{{$cluster}}/dashboard/db/pods?var-namespace={{$ns}}&amp;var-pod={{.GetName}}">Monitor</a></td>
             </tr>
             {{end}}
           </tbody>
         </table>
+
+      </div>
+      <div class="jumbotron">
+        <p class="lead">Cluster nodes:</p>
+        <table class="table table-striped">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Conditions</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {{range .Nodes}}
+            <tr>
+              <td>{{.Name}}</td>
+              <td>
+                {{range .Status.Conditions}}
+                  <span class="cond">{{.Type}}: {{.Status}}</span>
+                {{end}}
+              </td>
+              <td><a class="btn btn-outline-primary" href="//grafana.{{$cluster}}/dashboard/db/nodes?var-server={{hostToIp .GetName}}:9100">Monitor</a></td>
+            </tr>
+            {{end}}
+          </tbody>
+        </table>
+
     </div>
   </div>
 {{end}}
@@ -47,4 +74,11 @@
 
 {{define "page_css"}}
   <link rel="stylesheet" href="https://unpkg.com/tippy.js/dist/tippy.css">
+  <style>
+    span.cond {
+      background: white;
+      padding: 3px;
+      border-radius: 3px;
+    }
+  </style>
 {{end}}

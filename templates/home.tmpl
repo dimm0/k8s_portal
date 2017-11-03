@@ -16,7 +16,6 @@
             <h3>Slack support channel</h3>
             <p><a href="https://prp-chat.slack.com">https://prp-chat.slack.com</a></p>
 
-
             <h3>PRP Kubernetes quick start</h3>
             <ol>
             <li><a href="https://kubernetes.io/docs/tasks/tools/install-kubectl/">Install</a> the kubectl tool</li>
@@ -26,6 +25,9 @@
               <li>Run busybox container in your namespace: <code>kubectl run busybox -it --rm --image=busybox -- sh</code>. It will quit once you log out from the console.</li>
               <li><a href="https://kubernetes.io/docs/tutorials/kubernetes-basics/deploy-intro/">Learn</a> more about kubernetes.</li>
             </ol>
+
+            <h5>Limits</h5>
+            <p>The default <a href="https://kubernetes.io/docs/tasks/configure-pod-container/assign-memory-resource/#specify-a-memory-request-and-a-memory-limit">Memory limit</a> per container for most namespaces is 2Gi (1Gi for <i>gmail-edu</i>). You can increase it for a container if needed.</p>
 
             <h5>Running GPU PODs</h5>
             <p>Use the <a href="https://github.com/dimm0/prp_k8s_config/blob/master/tensorflow-example.yaml">tensorflow example POD</a> definition to create your own pod and deploy it to kubernetes.</p>
@@ -39,7 +41,7 @@
             <ul>
               <li><a href="https://grafana.k8s.optiputer.net/dashboard/db/cuda-gpu?var-node=67.58.53.155:9114">k8s-gpu-01.calit2.optiputer.net</a></li>
               <li><a href="https://grafana.k8s.optiputer.net/dashboard/db/cuda-gpu?var-node=67.58.53.156:9114">k8s-gpu-02.calit2.optiputer.net</a></li>
-              <li><a href="https://grafana.k8s.optiputer.net/dashboard/db/cuda-gpu?var-node=198.17.101.69:9114">k8s-gpu-03.calit2.optiputer.net</a></li>
+              <li><a href="https://grafana.k8s.optiputer.net/dashboard/db/cuda-gpu?var-node=198.17.101.69:9114">k8s-gpu-03.sdsc.optiputer.net</a></li>
               <li><a href="https://grafana.k8s.optiputer.net/dashboard/db/cuda-gpu?var-node=192.5.19.133:9114">fiona8.calit2.uci.edu</a></li>
             </ul>
             If you request GPU devices in your POD, kubernetes will auto schedule your pod to the appropriate node. There's no need to specify location manually.

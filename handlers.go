@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html/template"
 	"log"
+	"net"
 	"net/http"
 	"path"
 	"regexp"
@@ -21,7 +22,8 @@ import (
 	"github.com/spf13/viper"
 	"golang.org/x/oauth2"
 	"k8s.io/api/core/v1"
-	rbacv1beta1 "k8s.io/api/rbac/v1beta1"
+	rbacv1 "k8s.io/api/rbac/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -57,11 +59,11 @@ type ConfigTemplateVars struct {
 
 type ServicesTemplateVars struct {
 	IndexTemplateVars
-	Pods         []v1.Pod
-	GrafanaUrl   string
-	PerfsonarUrl string
-	Namespace    string
-	Namespaces   []v1.Namespace
+	Pods       []v1.Pod
+	Nodes      []v1.Node
+	ClusterUrl string
+	Namespace  string
+	Namespaces []v1.Namespace
 }
 
 func getUser(userid string) (PrpUser, error) {
@@ -200,16 +202,13 @@ func ServicesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	grafanaURL := fmt.Sprintf("https://grafana.%s", viper.GetString("cluster_url"))
-	perfsonarURL := fmt.Sprintf("https://perfsonar.%s", viper.GetString("cluster_url"))
-
 	var ns string
 	nss := []v1.Namespace{}
 
 	if user, err := getUser(session.Values["userid"].(string)); err == nil {
 		ns = getUserNamespace(user.Email)
 		if user.IsAdmin {
-			nsList, _ := clientset.Namespaces().List(metav1.ListOptions{})
+			nsList, _ := clientset.Core().Namespaces().List(metav1.ListOptions{})
 			nss = nsList.Items
 			if r.URL.Query().Get("namespace") != "" {
 				ns = r.URL.Query().Get("namespace")
@@ -220,13 +219,24 @@ func ServicesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	podsList, _ := clientset.Core().Pods(ns).List(metav1.ListOptions{})
-	stVars := ServicesTemplateVars{Pods: podsList.Items, Namespaces: nss, Namespace: ns, GrafanaUrl: grafanaURL, PerfsonarUrl: perfsonarURL, IndexTemplateVars: buildIndexTemplateVars(session)}
 
-	t, err := template.ParseFiles("templates/layout.tmpl", "templates/services.tmpl")
+	nodesList, _ := clientset.Core().Nodes().List(metav1.ListOptions{})
+
+	stVars := ServicesTemplateVars{Pods: podsList.Items, Nodes: nodesList.Items, Namespaces: nss, Namespace: ns, ClusterUrl: viper.GetString("cluster_url"), IndexTemplateVars: buildIndexTemplateVars(session)}
+
+	t, err := template.New("layout.tmpl").Funcs(template.FuncMap{
+		"hostToIp": func(host string) string {
+			ips, err := net.LookupIP(host)
+			if err != nil {
+				return host
+			}
+			return ips[0].String()
+		},
+	}).ParseFiles("templates/layout.tmpl", "templates/services.tmpl")
 	if err != nil {
 		w.Write([]byte(err.Error()))
 	} else {
-		err = t.Execute(w, stVars)
+		err = t.ExecuteTemplate(w, "layout.tmpl", stVars)
 		if err != nil {
 			w.Write([]byte(err.Error()))
 		}
@@ -296,7 +306,7 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	userID := idToken.Issuer + "#" + idToken.Subject
 
-	clusterInfoConfig, err := clientset.ConfigMaps("kube-public").Get("cluster-info", metav1.GetOptions{})
+	clusterInfoConfig, err := clientset.Core().ConfigMaps("kube-public").Get("cluster-info", metav1.GetOptions{})
 	if err != nil {
 		http.Error(w, "Failed to get cluster config: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -308,20 +318,36 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 
 		if _, err := clientset.Core().Namespaces().Get(userNamespace, metav1.GetOptions{}); err != nil {
 			clientset.Core().Namespaces().Create(&v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: userNamespace}})
+			clientset.Core().LimitRanges(userNamespace).Create(&v1.LimitRange{
+				ObjectMeta: metav1.ObjectMeta{Name: userNamespace + "-mem"},
+				Spec: v1.LimitRangeSpec{
+					Limits: []v1.LimitRangeItem{
+						v1.LimitRangeItem{
+							Type: v1.LimitTypeContainer,
+							Default: map[v1.ResourceName]resource.Quantity{
+								v1.ResourceMemory: resource.MustParse("2Gi"),
+							},
+							DefaultRequest: map[v1.ResourceName]resource.Quantity{
+								v1.ResourceMemory: resource.MustParse("256Mi"),
+							},
+						},
+					},
+				},
+			})
 		}
 
 		binding, err := clientset.Rbac().RoleBindings(userNamespace).Get("cilogon", metav1.GetOptions{})
 		if err != nil {
-			binding, err = clientset.Rbac().RoleBindings(userNamespace).Create(&rbacv1beta1.RoleBinding{
+			binding, err = clientset.Rbac().RoleBindings(userNamespace).Create(&rbacv1.RoleBinding{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "cilogon",
 				},
-				RoleRef: rbacv1beta1.RoleRef{
+				RoleRef: rbacv1.RoleRef{
 					APIGroup: "rbac.authorization.k8s.io",
 					Kind:     "ClusterRole",
 					Name:     "cilogon-edit",
 				},
-				Subjects: []rbacv1beta1.Subject{rbacv1beta1.Subject{Kind: "User", APIGroup: "rbac.authorization.k8s.io", Name: userID}},
+				Subjects: []rbacv1.Subject{rbacv1.Subject{Kind: "User", APIGroup: "rbac.authorization.k8s.io", Name: userID}},
 			})
 			if err != nil {
 				log.Printf("Error creating userbinding %s\n", err.Error())
