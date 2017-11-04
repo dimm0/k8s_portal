@@ -358,7 +358,7 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 						v1.LimitRangeItem{
 							Type: v1.LimitTypeContainer,
 							Default: map[v1.ResourceName]resource.Quantity{
-								v1.ResourceMemory: resource.MustParse("2Gi"),
+								v1.ResourceMemory: resource.MustParse("4Gi"),
 							},
 							DefaultRequest: map[v1.ResourceName]resource.Quantity{
 								v1.ResourceMemory: resource.MustParse("256Mi"),
