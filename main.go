@@ -106,6 +106,8 @@ func main() {
 	// }
 	// fmt.Printf("Clusterinfo: %v", clientset)
 
+	http.Handle("/media/", http.StripPrefix("/media/", http.FileServer(http.Dir("/media"))))
+
 	http.HandleFunc("/", RootHandler)
 	http.HandleFunc("/pods", PodsHandler)
 	http.HandleFunc("/nodes", NodesHandler)
