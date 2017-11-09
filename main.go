@@ -108,6 +108,10 @@ func main() {
 
 	http.Handle("/media/", http.StripPrefix("/media/", http.FileServer(http.Dir("/media"))))
 
+	http.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "/media/favicon.ico")
+	})
+
 	http.HandleFunc("/", RootHandler)
 	http.HandleFunc("/pods", PodsHandler)
 	http.HandleFunc("/nodes", NodesHandler)
