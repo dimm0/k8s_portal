@@ -332,13 +332,6 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userInfo, err := provider.UserInfo(r.Context(), oauth2.StaticTokenSource(oauth2Token))
-	if err != nil {
-		http.Error(w, "Failed to get userinfo: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-	userID := idToken.Issuer + "#" + idToken.Subject
-
 	clusterInfoConfig, err := clientset.Core().ConfigMaps("kube-public").Get("cluster-info", metav1.GetOptions{})
 	if err != nil {
 		http.Error(w, "Failed to get cluster config: "+err.Error(), http.StatusInternalServerError)
@@ -347,6 +340,13 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 
 	switch stateVal {
 	case "auth":
+		userInfo, err := provider.UserInfo(r.Context(), oauth2.StaticTokenSource(oauth2Token))
+		if err != nil {
+			http.Error(w, "Failed to get userinfo: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		userID := idToken.Issuer + "#" + idToken.Subject
+
 		userNamespace := getUserNamespace(userInfo.Email)
 
 		if _, err := clientset.Core().Namespaces().Get(userNamespace, metav1.GetOptions{}); err != nil {
@@ -457,7 +457,7 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 		delete(co.Clusters, "")
 
 		ns := "default"
-		if user, err := getUser(userInfo.Subject); err != nil {
+		if user, err := getUser(idToken.Subject); err != nil {
 			log.Printf("Error getting the user: %s", err.Error())
 		} else {
 			ns = getUserNamespace(user.Email)
@@ -466,11 +466,11 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 		co.Contexts = map[string]*api.Context{
 			viper.GetString("cluster_name"): &api.Context{
 				Cluster:   viper.GetString("cluster_name"),
-				AuthInfo:  userInfo.Subject,
+				AuthInfo:  idToken.Subject,
 				Namespace: ns,
 			},
 		}
-		co.AuthInfos = map[string]*api.AuthInfo{userInfo.Subject: {
+		co.AuthInfos = map[string]*api.AuthInfo{idToken.Subject: {
 			AuthProvider: &api.AuthProviderConfig{
 				Name: "oidc",
 				Config: map[string]string{
