@@ -282,7 +282,8 @@ func getUserNamespace(email string) string {
 
 	reg, _ := regexp.Compile("[^a-zA-Z0-9-]+")
 	userNamespace := reg.ReplaceAllString(userDomain, "-")
-	return userNamespace
+
+	return strings.ToLower(userNamespace)
 }
 
 func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
