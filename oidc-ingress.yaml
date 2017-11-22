@@ -1,15 +1,16 @@
 apiVersion: extensions/v1beta1
 kind: Ingress
 metadata:
-  name: oidc-auth
+  name: oidc-auth-dev
   namespace: kube-system
   annotations:
     kubernetes.io/ingress.class: traefik
 spec:
   rules:
-  - http:
+  - host: devportal.k8s.optiputer.net
+    http:
       paths:
       - path: /
         backend:
-          serviceName: oidc-auth
+          serviceName: oidc-auth-dev
           servicePort: 80
