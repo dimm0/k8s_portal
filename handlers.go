@@ -72,7 +72,12 @@ type NodesTemplateVars struct {
 
 type NamespacesTemplateVars struct {
 	IndexTemplateVars
-	Namespaces []v1.Namespace
+	NamespaceBindings []NamespaceUserBinding
+}
+
+type NamespaceUserBinding struct {
+	Namespace v1.Namespace
+	RoleBindings []rbacv1.RoleBinding
 }
 
 func getUser(userid string) (PrpUser, error) {
@@ -299,12 +304,24 @@ func NamespacesHandler(w http.ResponseWriter, r *http.Request) {
 
 	namespacesList, _ := clientset.Core().Namespaces().List(metav1.ListOptions{})
 
-	nsList := []v1.Namespace{}
+	nsList := []NamespaceUserBinding{}
 
-	for _, ns := range namespacesList {
+	for _, ns := range namespacesList.Items {
+		nsBind := NamespaceUserBinding{Namespace: ns, RoleBindings: []rbacv1.RoleBinding{}}
+		rbList, _ := clientset.Rbac().RoleBindings(ns.GetName()).List(metav1.ListOptions{})
+		for _, rb := range rbList.Items {
+			for _, subj := range rb.Subjects {
+				if strings.Split(subj.Name, "#")[1] == session.Values["userid"].(string) {
+					nsBind.RoleBindings = append(nsBind.RoleBindings, rb)
+				}
+			}
+		}
+		if len(nsBind.RoleBindings) > 0 {
+			nsList = append(nsList, nsBind)
+		}
 	}
 
-	nsVars := NamespacesTemplateVars{Namespaces: nsList, IndexTemplateVars: buildIndexTemplateVars(session)}
+	nsVars := NamespacesTemplateVars{NamespaceBindings: nsList, IndexTemplateVars: buildIndexTemplateVars(session)}
 
 	t, err := template.New("layout.tmpl").ParseFiles("templates/layout.tmpl", "templates/namespaces.tmpl")
 	if err != nil {

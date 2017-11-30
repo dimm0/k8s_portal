@@ -1,6 +1,4 @@
 {{define "body"}}
-  {{$cluster:= .ClusterUrl}}
-  {{$ns:= .Namespace}}
   <div class="container">
       <div class="jumbotron">
         <p class="lead">Your namespaces:</p>
@@ -12,9 +10,14 @@
             </tr>
           </thead>
           <tbody>
-            {{range .Namespaces}}
+            {{range .NamespaceBindings}}
             <tr>
-              <td></td>
+              <td>.Namespace.GetName</td>
+              <td>
+                {{range .NamespaceBindings}}
+                  <span class="roleref">{{.RoleRef.Name}}</span>
+                {{end}}
+              </td>
             </tr>
             {{end}}
           </tbody>
@@ -27,4 +30,12 @@
 {{end}}
 
 {{define "page_css"}}
+<style>
+  span.roleref {
+    background: white;
+    padding: 3px;
+    border-radius: 3px;
+    font-size: 0.6em;
+  }
+</style>
 {{end}}
