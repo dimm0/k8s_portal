@@ -1,0 +1,30 @@
+{{define "body"}}
+  {{$cluster:= .ClusterUrl}}
+  {{$ns:= .Namespace}}
+  <div class="container">
+      <div class="jumbotron">
+        <p class="lead">Your namespaces:</p>
+        <table class="table table-striped">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{range .Namespaces}}
+            <tr>
+              <td></td>
+            </tr>
+            {{end}}
+          </tbody>
+        </table>
+      </div>
+  </div>
+{{end}}
+
+{{define "page_js"}}
+{{end}}
+
+{{define "page_css"}}
+{{end}}

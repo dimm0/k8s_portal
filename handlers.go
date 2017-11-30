@@ -70,6 +70,11 @@ type NodesTemplateVars struct {
 	Nodes []v1.Node
 }
 
+type NamespacesTemplateVars struct {
+	IndexTemplateVars
+	Namespaces []v1.Namespace
+}
+
 func getUser(userid string) (PrpUser, error) {
 	var user PrpUser
 	if db, err := bolt.Open(path.Join(viper.GetString("storage_path"), "users.db"), 0600, &bolt.Options{Timeout: 5 * time.Second}); err == nil {
@@ -270,6 +275,42 @@ func NodesHandler(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(err.Error()))
 	} else {
 		err = t.ExecuteTemplate(w, "layout.tmpl", stVars)
+		if err != nil {
+			w.Write([]byte(err.Error()))
+		}
+	}
+}
+
+func NamespacesHandler(w http.ResponseWriter, r *http.Request) {
+
+	if r.Method != "GET" {
+		return
+	}
+
+	session, err := filestore.Get(r, "prp-session")
+	if err != nil {
+		log.Printf("Error getting the session: %s", err.Error())
+	}
+
+	if session.IsNew || session.Values["userid"] == nil {
+		http.Redirect(w, r, "/", http.StatusFound)
+		return
+	}
+
+	namespacesList, _ := clientset.Core().Namespaces().List(metav1.ListOptions{})
+
+	nsList := []v1.Namespace{}
+
+	for _, ns := range namespacesList {
+	}
+
+	nsVars := NamespacesTemplateVars{Namespaces: nsList, IndexTemplateVars: buildIndexTemplateVars(session)}
+
+	t, err := template.New("layout.tmpl").ParseFiles("templates/layout.tmpl", "templates/namespaces.tmpl")
+	if err != nil {
+		w.Write([]byte(err.Error()))
+	} else {
+		err = t.ExecuteTemplate(w, "layout.tmpl", nsVars)
 		if err != nil {
 			w.Write([]byte(err.Error()))
 		}
