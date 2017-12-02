@@ -51,6 +51,7 @@ type PrpUser struct {
 type IndexTemplateVars struct {
 	User       PrpUser
 	ClusterUrl string
+	Flashes []string
 }
 
 type ConfigTemplateVars struct {
@@ -78,6 +79,7 @@ type NamespacesTemplateVars struct {
 type NamespaceUserBinding struct {
 	Namespace v1.Namespace
 	RoleBindings []rbacv1.RoleBinding
+	ClusterRoleBindings []rbacv1.ClusterRoleBinding
 }
 
 func getUser(userid string) (PrpUser, error) {
@@ -109,7 +111,7 @@ func getUser(userid string) (PrpUser, error) {
 	return user, nil
 }
 
-func buildIndexTemplateVars(session *sessions.Session) IndexTemplateVars {
+func buildIndexTemplateVars(session *sessions.Session, w http.ResponseWriter, r *http.Request) IndexTemplateVars {
 	returnVars := IndexTemplateVars{User: PrpUser{}, ClusterUrl: viper.GetString("cluster_url")}
 	if session.Values["userid"] == nil {
 		return returnVars
@@ -119,6 +121,14 @@ func buildIndexTemplateVars(session *sessions.Session) IndexTemplateVars {
 		log.Printf("Error getting the user: %s", err.Error())
 	} else {
 		returnVars.User = user
+	}
+
+	if flashes := session.Flashes(); len(flashes) > 0 {
+		returnVars.Flashes = []string{}
+		for _, fl := range flashes {
+			returnVars.Flashes = append(returnVars.Flashes, fl.(string))
+		}
+		session.Save(r,w)
 	}
 
 	return returnVars
@@ -134,7 +144,7 @@ func RootHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.Write([]byte(err.Error()))
 	} else {
-		err = t.Execute(w, buildIndexTemplateVars(session))
+		err = t.Execute(w, buildIndexTemplateVars(session, w, r))
 		if err != nil {
 			w.Write([]byte(err.Error()))
 		}
@@ -234,7 +244,7 @@ func PodsHandler(w http.ResponseWriter, r *http.Request) {
 
 	podsList, _ := clientset.Core().Pods(ns).List(metav1.ListOptions{})
 
-	stVars := PodsTemplateVars{Pods: podsList.Items, Namespaces: nss, Namespace: ns, IndexTemplateVars: buildIndexTemplateVars(session)}
+	stVars := PodsTemplateVars{Pods: podsList.Items, Namespaces: nss, Namespace: ns, IndexTemplateVars: buildIndexTemplateVars(session, w, r)}
 
 	t, err := template.New("layout.tmpl").ParseFiles("templates/layout.tmpl", "templates/pods.tmpl")
 	if err != nil {
@@ -265,7 +275,7 @@ func NodesHandler(w http.ResponseWriter, r *http.Request) {
 
 	nodesList, _ := clientset.Core().Nodes().List(metav1.ListOptions{})
 
-	stVars := NodesTemplateVars{Nodes: nodesList.Items, IndexTemplateVars: buildIndexTemplateVars(session)}
+	stVars := NodesTemplateVars{Nodes: nodesList.Items, IndexTemplateVars: buildIndexTemplateVars(session, w, r)}
 
 	t, err := template.New("layout.tmpl").Funcs(template.FuncMap{
 		"hostToIp": func(host string) string {
@@ -304,6 +314,66 @@ func NamespacesHandler(w http.ResponseWriter, r *http.Request) {
 
 	namespacesList, _ := clientset.Core().Namespaces().List(metav1.ListOptions{})
 
+	if r.URL.Query().Get("mkns") != "" {
+		var nsName = r.URL.Query().Get("mkns")
+		var found = false
+		for _, ns := range namespacesList.Items {
+			if ns.GetName() == nsName {
+				found = true
+			}
+		}
+		if !found {
+			if user, err := getUser(session.Values["userid"].(string)); err == nil {
+				if _, err := clientset.Core().Namespaces().Create(&v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: nsName}}); err != nil {
+					session.AddFlash(fmt.Sprintf("Error creating the namespace: %s", err.Error()))
+					session.Save(r, w)
+				} else {
+					clientset.Core().LimitRanges(nsName).Create(&v1.LimitRange{
+						ObjectMeta: metav1.ObjectMeta{Name: nsName + "-mem"},
+						Spec: v1.LimitRangeSpec{
+							Limits: []v1.LimitRangeItem{
+								v1.LimitRangeItem{
+									Type: v1.LimitTypeContainer,
+									Default: map[v1.ResourceName]resource.Quantity{
+										v1.ResourceMemory: resource.MustParse("4Gi"),
+									},
+									DefaultRequest: map[v1.ResourceName]resource.Quantity{
+										v1.ResourceMemory: resource.MustParse("256Mi"),
+									},
+								},
+							},
+						},
+					})
+
+					_, err := clientset.Rbac().RoleBindings(nsName).Create(&rbacv1.RoleBinding{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "cilogon",
+						},
+						RoleRef: rbacv1.RoleRef{
+							APIGroup: "rbac.authorization.k8s.io",
+							Kind:     "ClusterRole",
+							Name:     "admin",
+						},
+						Subjects: []rbacv1.Subject{rbacv1.Subject{
+							Kind: "User",
+							APIGroup: "rbac.authorization.k8s.io", 
+							Name: user.ISS+"#"+user.UserID}},
+					})
+					if err != nil {
+						log.Printf("Error creating userbinding %s\n", err.Error())
+					}
+				}
+			} else {
+				log.Printf("Error getting the user: %s", err.Error())
+			}
+		} else {
+			session.AddFlash(fmt.Sprintf("The namespace %s already exists", nsName))
+			session.Save(r, w)
+					log.Printf("Already exists")
+		}
+		namespacesList, _ = clientset.Core().Namespaces().List(metav1.ListOptions{})
+	}
+
 	nsList := []NamespaceUserBinding{}
 
 	for _, ns := range namespacesList.Items {
@@ -311,7 +381,11 @@ func NamespacesHandler(w http.ResponseWriter, r *http.Request) {
 		rbList, _ := clientset.Rbac().RoleBindings(ns.GetName()).List(metav1.ListOptions{})
 		for _, rb := range rbList.Items {
 			for _, subj := range rb.Subjects {
-				if strings.Split(subj.Name, "#")[1] == session.Values["userid"].(string) {
+				var subjStr = subj.Name
+				if strings.Contains(subjStr, "#") {
+					subjStr = strings.Split(subjStr, "#")[1]
+				}
+				if subjStr == session.Values["userid"].(string) {
 					nsBind.RoleBindings = append(nsBind.RoleBindings, rb)
 				}
 			}
@@ -321,7 +395,25 @@ func NamespacesHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	nsVars := NamespacesTemplateVars{NamespaceBindings: nsList, IndexTemplateVars: buildIndexTemplateVars(session)}
+	//Cluster ones
+	nsBind := NamespaceUserBinding{ClusterRoleBindings: []rbacv1.ClusterRoleBinding{}}
+	rbList, _ := clientset.Rbac().ClusterRoleBindings().List(metav1.ListOptions{})
+	for _, rb := range rbList.Items {
+		for _, subj := range rb.Subjects {
+			var subjStr = subj.Name
+			if strings.Contains(subjStr, "#") {
+				subjStr = strings.Split(subjStr, "#")[1]
+			}
+			if subjStr == session.Values["userid"].(string) {
+				nsBind.ClusterRoleBindings = append(nsBind.ClusterRoleBindings, rb)
+			}
+		}
+	}
+	if len(nsBind.ClusterRoleBindings) > 0 {
+		nsList = append(nsList, nsBind)
+	}
+
+	nsVars := NamespacesTemplateVars{NamespaceBindings: nsList, IndexTemplateVars: buildIndexTemplateVars(session, w, r)}
 
 	t, err := template.New("layout.tmpl").ParseFiles("templates/layout.tmpl", "templates/namespaces.tmpl")
 	if err != nil {
@@ -562,7 +654,7 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				w.Write([]byte(err.Error()))
 			} else {
-				err = t.Execute(w, ConfigTemplateVars{ConfigId: newId, IndexTemplateVars: buildIndexTemplateVars(session)})
+				err = t.Execute(w, ConfigTemplateVars{ConfigId: newId, IndexTemplateVars: buildIndexTemplateVars(session, w, r)})
 				if err != nil {
 					w.Write([]byte(err.Error()))
 				}

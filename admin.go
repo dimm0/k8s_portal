@@ -42,7 +42,7 @@ func AdminHandler(w http.ResponseWriter, r *http.Request) {
 			log.Printf("Error getting the admins: %s", err.Error())
 		}
 
-		vars := AdminTemplateVars{buildIndexTemplateVars(session), map[string]NamespaceAdmin{}}
+		vars := AdminTemplateVars{buildIndexTemplateVars(session, w, r), map[string]NamespaceAdmin{}}
 
 		if db, err := bolt.Open(path.Join(viper.GetString("storage_path"), "users.db"), 0600, &bolt.Options{Timeout: 5 * time.Second}); err == nil {
 			defer db.Close()

@@ -115,6 +115,7 @@ func main() {
 	http.HandleFunc("/", RootHandler)
 	http.HandleFunc("/pods", PodsHandler)
 	http.HandleFunc("/nodes", NodesHandler)
+	http.HandleFunc("/namespaces", NamespacesHandler)
 
 	http.HandleFunc("/authConfig", func(w http.ResponseWriter, r *http.Request) {
 		statesLock.Lock()

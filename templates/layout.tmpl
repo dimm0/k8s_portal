@@ -58,13 +58,23 @@
                 <li class="nav-item">
                     <a class="nav-link" href="authConfig">Get config</a>
                 </li>
-                <li class="nav-item">
-                  <a class="nav-link" href="logout">Log out {{.User.Email}}</a>
+                <li class="nav-item dropdown">
+                  <a class="nav-link dropdown-toggle" href="" id="profile_drop" data-toggle="dropdown" aria-expanded="false">{{.User.Email}}</a>
+                  <div class="dropdown-menu" aria-labelledby="services_drop">
+                      <a class="dropdown-item" href="namespaces">Namespaces</a>
+                      <a class="dropdown-item" href="logout">Log out</a>
+                  </div>
                 </li>
               {{end}}
           </ul>
       </div>
   </nav>
+
+  {{range .Flashes}}
+    <div class="alert alert-warning">
+	  <strong>Warning!</strong> {{.}}
+    </div>
+  {{end}}
 
   {{template "body" .}}
 
