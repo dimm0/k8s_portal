@@ -23,7 +23,6 @@ import (
 	"golang.org/x/oauth2"
 	"k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -45,7 +44,6 @@ type PrpUser struct {
 	Email   string
 	Name    string
 	IDP     string
-	IsAdmin bool
 }
 
 type IndexTemplateVars struct {
@@ -100,15 +98,47 @@ func getUser(userid string) (PrpUser, error) {
 			return user, err
 		}
 	}
-	if admins, err := getClusterAdmins(); err != nil {
-		log.Printf("Error getting the admins: %s", err.Error())
-	} else {
-		if val, ok := admins[user.ISS+"#"+user.UserID]; ok {
-			user.IsAdmin = val
-		}
-	}
 
 	return user, nil
+}
+
+func (user PrpUser) IsAdmin(namespace string) bool {
+	if user.IsClusterAdmin() {
+		return true
+	}
+	if namespace != "" {
+		if bindings, err := clientset.Rbac().RoleBindings(namespace).List(metav1.ListOptions{}); err != nil {
+			return false
+		} else {
+			for _, bind := range bindings.Items {
+				if bind.RoleRef.Name == "admin" || bind.RoleRef.Name == "cluster-admin" {
+					for _, subj := range bind.Subjects {
+						if user.ISS + "#" + user.UserID == subj.Name {
+							return true
+						}
+					}
+				}
+			}
+		}
+	}
+	return false
+}
+
+func (user PrpUser) IsClusterAdmin() bool {
+	if bindings, err := clientset.Rbac().ClusterRoleBindings().List(metav1.ListOptions{}); err != nil {
+		return false
+	} else {
+		for _, bind := range bindings.Items {
+			if !strings.HasPrefix(bind.Name, "system") && bind.RoleRef.Name == "admin" || bind.RoleRef.Name == "cluster-admin" {
+				for _, subj := range bind.Subjects {
+					if user.ISS + "#" + user.UserID == subj.Name {
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
 }
 
 func buildIndexTemplateVars(session *sessions.Session, w http.ResponseWriter, r *http.Request) IndexTemplateVars {
@@ -195,20 +225,6 @@ func GetConfigHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func getClusterAdmins() (map[string]bool, error) {
-	var admins = map[string]bool{}
-	binding, err := clientset.Rbac().ClusterRoleBindings().Get("cilogon-admins", metav1.GetOptions{})
-
-	if err != nil {
-		return admins, err
-	}
-
-	for _, subj := range binding.Subjects {
-		admins[subj.Name] = true
-	}
-	return admins, err
-}
-
 //handles the http requests for get pods
 func PodsHandler(w http.ResponseWriter, r *http.Request) {
 
@@ -231,7 +247,7 @@ func PodsHandler(w http.ResponseWriter, r *http.Request) {
 
 	if user, err := getUser(session.Values["userid"].(string)); err == nil {
 		ns = getUserNamespace(user.Email)
-		if user.IsAdmin {
+		if user.IsAdmin("") {
 			nsList, _ := clientset.Core().Namespaces().List(metav1.ListOptions{})
 			nss = nsList.Items
 			if r.URL.Query().Get("namespace") != "" {
@@ -290,136 +306,6 @@ func NodesHandler(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(err.Error()))
 	} else {
 		err = t.ExecuteTemplate(w, "layout.tmpl", stVars)
-		if err != nil {
-			w.Write([]byte(err.Error()))
-		}
-	}
-}
-
-func NamespacesHandler(w http.ResponseWriter, r *http.Request) {
-
-	if r.Method != "GET" {
-		return
-	}
-
-	session, err := filestore.Get(r, "prp-session")
-	if err != nil {
-		log.Printf("Error getting the session: %s", err.Error())
-	}
-
-	if session.IsNew || session.Values["userid"] == nil {
-		http.Redirect(w, r, "/", http.StatusFound)
-		return
-	}
-
-	namespacesList, _ := clientset.Core().Namespaces().List(metav1.ListOptions{})
-
-	if r.URL.Query().Get("mkns") != "" {
-		var nsName = r.URL.Query().Get("mkns")
-		var found = false
-		for _, ns := range namespacesList.Items {
-			if ns.GetName() == nsName {
-				found = true
-			}
-		}
-		if !found {
-			if user, err := getUser(session.Values["userid"].(string)); err == nil {
-				if _, err := clientset.Core().Namespaces().Create(&v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: nsName}}); err != nil {
-					session.AddFlash(fmt.Sprintf("Error creating the namespace: %s", err.Error()))
-					session.Save(r, w)
-				} else {
-					clientset.Core().LimitRanges(nsName).Create(&v1.LimitRange{
-						ObjectMeta: metav1.ObjectMeta{Name: nsName + "-mem"},
-						Spec: v1.LimitRangeSpec{
-							Limits: []v1.LimitRangeItem{
-								v1.LimitRangeItem{
-									Type: v1.LimitTypeContainer,
-									Default: map[v1.ResourceName]resource.Quantity{
-										v1.ResourceMemory: resource.MustParse("4Gi"),
-									},
-									DefaultRequest: map[v1.ResourceName]resource.Quantity{
-										v1.ResourceMemory: resource.MustParse("256Mi"),
-									},
-								},
-							},
-						},
-					})
-
-					_, err := clientset.Rbac().RoleBindings(nsName).Create(&rbacv1.RoleBinding{
-						ObjectMeta: metav1.ObjectMeta{
-							Name: "cilogon",
-						},
-						RoleRef: rbacv1.RoleRef{
-							APIGroup: "rbac.authorization.k8s.io",
-							Kind:     "ClusterRole",
-							Name:     "admin",
-						},
-						Subjects: []rbacv1.Subject{rbacv1.Subject{
-							Kind: "User",
-							APIGroup: "rbac.authorization.k8s.io", 
-							Name: user.ISS+"#"+user.UserID}},
-					})
-					if err != nil {
-						log.Printf("Error creating userbinding %s\n", err.Error())
-					}
-				}
-			} else {
-				log.Printf("Error getting the user: %s", err.Error())
-			}
-		} else {
-			session.AddFlash(fmt.Sprintf("The namespace %s already exists", nsName))
-			session.Save(r, w)
-					log.Printf("Already exists")
-		}
-		namespacesList, _ = clientset.Core().Namespaces().List(metav1.ListOptions{})
-	}
-
-	nsList := []NamespaceUserBinding{}
-
-	for _, ns := range namespacesList.Items {
-		nsBind := NamespaceUserBinding{Namespace: ns, RoleBindings: []rbacv1.RoleBinding{}}
-		rbList, _ := clientset.Rbac().RoleBindings(ns.GetName()).List(metav1.ListOptions{})
-		for _, rb := range rbList.Items {
-			for _, subj := range rb.Subjects {
-				var subjStr = subj.Name
-				if strings.Contains(subjStr, "#") {
-					subjStr = strings.Split(subjStr, "#")[1]
-				}
-				if subjStr == session.Values["userid"].(string) {
-					nsBind.RoleBindings = append(nsBind.RoleBindings, rb)
-				}
-			}
-		}
-		if len(nsBind.RoleBindings) > 0 {
-			nsList = append(nsList, nsBind)
-		}
-	}
-
-	//Cluster ones
-	nsBind := NamespaceUserBinding{ClusterRoleBindings: []rbacv1.ClusterRoleBinding{}}
-	rbList, _ := clientset.Rbac().ClusterRoleBindings().List(metav1.ListOptions{})
-	for _, rb := range rbList.Items {
-		for _, subj := range rb.Subjects {
-			var subjStr = subj.Name
-			if strings.Contains(subjStr, "#") {
-				subjStr = strings.Split(subjStr, "#")[1]
-			}
-			if subjStr == session.Values["userid"].(string) {
-				nsBind.ClusterRoleBindings = append(nsBind.ClusterRoleBindings, rb)
-			}
-		}
-	}
-	if len(nsBind.ClusterRoleBindings) > 0 {
-		nsList = append(nsList, nsBind)
-	}
-
-	nsVars := NamespacesTemplateVars{NamespaceBindings: nsList, IndexTemplateVars: buildIndexTemplateVars(session, w, r)}
-
-	t, err := template.New("layout.tmpl").ParseFiles("templates/layout.tmpl", "templates/namespaces.tmpl")
-	if err != nil {
-		w.Write([]byte(err.Error()))
-	} else {
-		err = t.ExecuteTemplate(w, "layout.tmpl", nsVars)
 		if err != nil {
 			w.Write([]byte(err.Error()))
 		}
@@ -502,22 +388,11 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 
 		if _, err := clientset.Core().Namespaces().Get(userNamespace, metav1.GetOptions{}); err != nil {
 			clientset.Core().Namespaces().Create(&v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: userNamespace}})
-			clientset.Core().LimitRanges(userNamespace).Create(&v1.LimitRange{
-				ObjectMeta: metav1.ObjectMeta{Name: userNamespace + "-mem"},
-				Spec: v1.LimitRangeSpec{
-					Limits: []v1.LimitRangeItem{
-						v1.LimitRangeItem{
-							Type: v1.LimitTypeContainer,
-							Default: map[v1.ResourceName]resource.Quantity{
-								v1.ResourceMemory: resource.MustParse("4Gi"),
-							},
-							DefaultRequest: map[v1.ResourceName]resource.Quantity{
-								v1.ResourceMemory: resource.MustParse("256Mi"),
-							},
-						},
-					},
-				},
-			})
+			if _, err := createNsLimits(userNamespace); err != nil {
+				http.Error(w, "Failed to create namespace "+userNamespace+" limits: %s" + err.Error(), http.StatusInternalServerError)
+				return
+			}
+
 		}
 
 		binding, err := clientset.Rbac().RoleBindings(userNamespace).Get("cilogon", metav1.GetOptions{})

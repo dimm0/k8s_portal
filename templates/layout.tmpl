@@ -39,7 +39,7 @@
               </li>
               {{end}}
               {{if .User.UserID}}
-                {{if .User.IsAdmin}}
+                {{if .User.IsAdmin ""}}
                   <li class="nav-item">
                       <a class="nav-link" href="admin">Admin</a>
                   </li>

@@ -37,11 +37,6 @@ func AdminHandler(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(err.Error()))
 	} else {
 
-		admins, err := getClusterAdmins()
-		if err != nil {
-			log.Printf("Error getting the admins: %s", err.Error())
-		}
-
 		vars := AdminTemplateVars{buildIndexTemplateVars(session, w, r), map[string]NamespaceAdmin{}}
 
 		if db, err := bolt.Open(path.Join(viper.GetString("storage_path"), "users.db"), 0600, &bolt.Options{Timeout: 5 * time.Second}); err == nil {
@@ -56,10 +51,6 @@ func AdminHandler(w http.ResponseWriter, r *http.Request) {
 					var user PrpUser
 					if err = json.Unmarshal(v, &user); err != nil {
 						return err
-					}
-
-					if val, ok := admins[user.ISS+"#"+user.UserID]; ok {
-						user.IsAdmin = val
 					}
 
 					userNs := getUserNamespace(user.Email)

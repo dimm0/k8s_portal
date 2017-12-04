@@ -13,7 +13,7 @@
           </thead>
           <tbody>
             {{range $v.User}}
-            <tr{{if .IsAdmin}} style="background-color:rgba(255, 179, 0, 0.18)"{{end}}>
+            <tr{{if .IsAdmin $k}} style="background-color:rgba(255, 179, 0, 0.18)"{{end}}>
               <td>{{.UserID}}</td>
               <td>{{.Name}}</td>
               <td>{{.IDP}}</td>

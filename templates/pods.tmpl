@@ -4,7 +4,7 @@
   <div class="container">
       <div class="jumbotron">
         <p class="lead">Pods running in your namespace:</p>
-        {{if .User.IsAdmin}}
+        {{if .User.IsAdmin ""}}
         <select class="form-control" id="ns_sel" onchange="window.location.href='/pods?namespace='+this.value">
           <option value=""><i>User's default</i></option>
           {{range .Namespaces}}
