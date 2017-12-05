@@ -83,7 +83,6 @@ type NamespaceUserBinding struct {
 func getUser(userid string) (PrpUser, error) {
 	var user PrpUser
 	if db, err := bolt.Open(path.Join(viper.GetString("storage_path"), "users.db"), 0600, &bolt.Options{Timeout: 5 * time.Second}); err == nil {
-		defer db.Close()
 
 		if err = db.View(func(tx *bolt.Tx) error {
 			b := tx.Bucket([]byte("Users"))
@@ -93,6 +92,7 @@ func getUser(userid string) (PrpUser, error) {
 				return err
 			}
 
+			db.Close()
 			return nil
 		}); err != nil {
 			return user, err
@@ -454,8 +454,6 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if db, err := bolt.Open(path.Join(viper.GetString("storage_path"), "users.db"), 0600, &bolt.Options{Timeout: 5 * time.Second}); err == nil {
-			defer db.Close()
-
 			if err = db.Update(func(tx *bolt.Tx) error {
 				b, err := tx.CreateBucketIfNotExists([]byte("Users"))
 				if err != nil {
@@ -471,6 +469,7 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 			}); err != nil {
 				log.Printf("failed to update the users DB %s", err.Error())
 			}
+			db.Close()
 		} else {
 			log.Printf("failed to connect database %s", err.Error())
 		}
