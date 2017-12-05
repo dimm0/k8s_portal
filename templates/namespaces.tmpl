@@ -8,6 +8,7 @@
             <tr>
               <th>Name</th>
               <th>Status</th>
+	      <th></th>
             </tr>
           </thead>
           <tbody>
@@ -20,6 +21,7 @@
                     <span class="roleref">{{.RoleRef.Name}}</span>
                   {{end}}
                 </td>
+		<td></td>
       	      {{else}}
                 <td>{{$value.Namespace.GetName}}</td>
                 <td>
@@ -27,6 +29,7 @@
                     <span class="roleref">{{.RoleRef.Name}}</span>
                   {{end}}
                 </td>
+		<td><button type="button" class="btn btn-danger"><i class="fa fa-trash" aria-hidden="true" onclick="delns('{{$value.Namespace.GetName}}')"></i></button></td>
       	      {{end}}
             </tr>
             {{end}}
@@ -44,6 +47,15 @@ function mkns() {
 	    message: 'Namespace name',
 	    callback: function (value) {
 		document.location.href = "?mkns="+value;
+	    }
+	})
+}
+function delns(ns) {
+	vex.dialog.confirm({
+	    message: 'Delete namespace '+ns+'? (May take some time)',
+	    callback: function (value) {
+	    	if(value)
+			document.location.href = "?delns="+ns;
 	    }
 	})
 }
