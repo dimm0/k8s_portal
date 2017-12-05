@@ -75,6 +75,9 @@ func NamespacesHandler(w http.ResponseWriter, r *http.Request) {
 						if err := clientset.Core().Namespaces().Delete(delNsName, &metav1.DeleteOptions{}); err != nil {
 							session.AddFlash(fmt.Sprintf("Error deleting the namespace: %s", err.Error()))
 							session.Save(r, w)
+						} else {
+							session.AddFlash(fmt.Sprintf("The namespace %s is being deleted. Please update the page or use kubectl to see the result.", delNsName))
+							session.Save(r, w)
 						}
 					}
 				} else {

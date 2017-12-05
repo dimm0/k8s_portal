@@ -46,7 +46,8 @@ function mkns() {
 	vex.dialog.prompt({
 	    message: 'Namespace name',
 	    callback: function (value) {
-		document.location.href = "?mkns="+value;
+        if(value !== false)
+		      document.location.href = "?mkns="+value;
 	    }
 	})
 }
