@@ -113,7 +113,7 @@ func (user PrpUser) IsAdmin(namespace string) bool {
 			for _, bind := range bindings.Items {
 				if bind.RoleRef.Name == "admin" || bind.RoleRef.Name == "cluster-admin" {
 					for _, subj := range bind.Subjects {
-						if user.ISS + "#" + user.UserID == subj.Name {
+						if subj.Kind == rbacv1.UserKind && user.ISS + "#" + user.UserID == subj.Name {
 							return true
 						}
 					}
@@ -129,9 +129,9 @@ func (user PrpUser) IsClusterAdmin() bool {
 		return false
 	} else {
 		for _, bind := range bindings.Items {
-			if !strings.HasPrefix(bind.Name, "system") && bind.RoleRef.Name == "admin" || bind.RoleRef.Name == "cluster-admin" {
+			if !strings.HasPrefix(bind.Name, "system") && (bind.RoleRef.Name == "admin" || bind.RoleRef.Name == "cluster-admin") {
 				for _, subj := range bind.Subjects {
-					if user.ISS + "#" + user.UserID == subj.Name {
+					if subj.Kind == rbacv1.UserKind && user.ISS + "#" + user.UserID == subj.Name {
 						return true
 					}
 				}

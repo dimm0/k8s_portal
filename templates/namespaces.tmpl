@@ -13,21 +13,21 @@
           <tbody>
             {{range $key, $value := .NamespaceBindings}}
             <tr>
-	      {{if eq $value.Namespace.GetName ""}}
-	        <td><i>Cluster-wide</i></td>
+      	      {{if eq $value.Namespace.GetName ""}}
+      	        <td><i>Cluster-wide</i></td>
                 <td>
                   {{range $value.ClusterRoleBindings}}
                     <span class="roleref">{{.RoleRef.Name}}</span>
                   {{end}}
                 </td>
-	      {{else}}
+      	      {{else}}
                 <td>{{$value.Namespace.GetName}}</td>
                 <td>
                   {{range $value.RoleBindings}}
                     <span class="roleref">{{.RoleRef.Name}}</span>
                   {{end}}
                 </td>
-	      {{end}}
+      	      {{end}}
             </tr>
             {{end}}
           </tbody>
