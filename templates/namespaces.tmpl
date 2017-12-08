@@ -1,0 +1,76 @@
+{{define "body"}}
+  <div class="container">
+      <div class="jumbotron">
+        <a class="btn btn-outline-primary" href="JavaScript:mkns()">Create new</a>
+        <p class="lead">Your namespaces:</p>
+        <table class="table table-striped">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Status</th>
+	      <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {{range $key, $value := .NamespaceBindings}}
+            <tr>
+      	      {{if eq $value.Namespace.GetName ""}}
+      	        <td><i>Cluster-wide</i></td>
+                <td>
+                  {{range $value.ClusterRoleBindings}}
+                    <span class="roleref">{{.RoleRef.Name}}</span>
+                  {{end}}
+                </td>
+		<td></td>
+      	      {{else}}
+                <td>{{$value.Namespace.GetName}}</td>
+                <td>
+                  {{range $value.RoleBindings}}
+                    <span class="roleref">{{.RoleRef.Name}}</span>
+                  {{end}}
+                </td>
+		<td><button type="button" class="btn btn-danger"><i class="fa fa-trash" aria-hidden="true" onclick="delns('{{$value.Namespace.GetName}}')"></i></button></td>
+      	      {{end}}
+            </tr>
+            {{end}}
+          </tbody>
+        </table>
+      </div>
+  </div>
+{{end}}
+
+{{define "page_js"}}
+
+<script language="JavaScript">
+function mkns() {
+	vex.dialog.prompt({
+	    message: 'Namespace name',
+	    callback: function (value) {
+        if(value !== false)
+		      document.location.href = "?mkns="+value;
+	    }
+	})
+}
+function delns(ns) {
+	vex.dialog.confirm({
+	    message: 'Delete namespace '+ns+'? (May take some time)',
+	    callback: function (value) {
+	    	if(value)
+			document.location.href = "?delns="+ns;
+	    }
+	})
+}
+</script>
+{{end}}
+
+{{define "page_css"}}
+
+<style>
+  span.roleref {
+    background: white;
+    padding: 3px;
+    border-radius: 3px;
+    font-size: 0.6em;
+  }
+</style>
+{{end}}

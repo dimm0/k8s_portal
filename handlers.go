@@ -23,7 +23,6 @@ import (
 	"golang.org/x/oauth2"
 	"k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -45,12 +44,12 @@ type PrpUser struct {
 	Email   string
 	Name    string
 	IDP     string
-	IsAdmin bool
 }
 
 type IndexTemplateVars struct {
 	User       PrpUser
 	ClusterUrl string
+	Flashes []string
 }
 
 type ConfigTemplateVars struct {
@@ -70,10 +69,20 @@ type NodesTemplateVars struct {
 	Nodes []v1.Node
 }
 
+type NamespacesTemplateVars struct {
+	IndexTemplateVars
+	NamespaceBindings []NamespaceUserBinding
+}
+
+type NamespaceUserBinding struct {
+	Namespace v1.Namespace
+	RoleBindings []rbacv1.RoleBinding
+	ClusterRoleBindings []rbacv1.ClusterRoleBinding
+}
+
 func getUser(userid string) (PrpUser, error) {
 	var user PrpUser
 	if db, err := bolt.Open(path.Join(viper.GetString("storage_path"), "users.db"), 0600, &bolt.Options{Timeout: 5 * time.Second}); err == nil {
-		defer db.Close()
 
 		if err = db.View(func(tx *bolt.Tx) error {
 			b := tx.Bucket([]byte("Users"))
@@ -83,23 +92,56 @@ func getUser(userid string) (PrpUser, error) {
 				return err
 			}
 
+			db.Close()
 			return nil
 		}); err != nil {
 			return user, err
-		}
-	}
-	if admins, err := getClusterAdmins(); err != nil {
-		log.Printf("Error getting the admins: %s", err.Error())
-	} else {
-		if val, ok := admins[user.ISS+"#"+user.UserID]; ok {
-			user.IsAdmin = val
 		}
 	}
 
 	return user, nil
 }
 
-func buildIndexTemplateVars(session *sessions.Session) IndexTemplateVars {
+func (user PrpUser) IsAdmin(namespace string) bool {
+	if user.IsClusterAdmin() {
+		return true
+	}
+	if namespace != "" {
+		if bindings, err := clientset.Rbac().RoleBindings(namespace).List(metav1.ListOptions{}); err != nil {
+			return false
+		} else {
+			for _, bind := range bindings.Items {
+				if bind.RoleRef.Name == "admin" || bind.RoleRef.Name == "cluster-admin" {
+					for _, subj := range bind.Subjects {
+						if subj.Kind == rbacv1.UserKind && user.ISS + "#" + user.UserID == subj.Name {
+							return true
+						}
+					}
+				}
+			}
+		}
+	}
+	return false
+}
+
+func (user PrpUser) IsClusterAdmin() bool {
+	if bindings, err := clientset.Rbac().ClusterRoleBindings().List(metav1.ListOptions{}); err != nil {
+		return false
+	} else {
+		for _, bind := range bindings.Items {
+			if !strings.HasPrefix(bind.Name, "system") && (bind.RoleRef.Name == "admin" || bind.RoleRef.Name == "cluster-admin") {
+				for _, subj := range bind.Subjects {
+					if subj.Kind == rbacv1.UserKind && user.ISS + "#" + user.UserID == subj.Name {
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
+}
+
+func buildIndexTemplateVars(session *sessions.Session, w http.ResponseWriter, r *http.Request) IndexTemplateVars {
 	returnVars := IndexTemplateVars{User: PrpUser{}, ClusterUrl: viper.GetString("cluster_url")}
 	if session.Values["userid"] == nil {
 		return returnVars
@@ -109,6 +151,14 @@ func buildIndexTemplateVars(session *sessions.Session) IndexTemplateVars {
 		log.Printf("Error getting the user: %s", err.Error())
 	} else {
 		returnVars.User = user
+	}
+
+	if flashes := session.Flashes(); len(flashes) > 0 {
+		returnVars.Flashes = []string{}
+		for _, fl := range flashes {
+			returnVars.Flashes = append(returnVars.Flashes, fl.(string))
+		}
+		session.Save(r,w)
 	}
 
 	return returnVars
@@ -124,7 +174,7 @@ func RootHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.Write([]byte(err.Error()))
 	} else {
-		err = t.Execute(w, buildIndexTemplateVars(session))
+		err = t.Execute(w, buildIndexTemplateVars(session, w, r))
 		if err != nil {
 			w.Write([]byte(err.Error()))
 		}
@@ -175,20 +225,6 @@ func GetConfigHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func getClusterAdmins() (map[string]bool, error) {
-	var admins = map[string]bool{}
-	binding, err := clientset.Rbac().ClusterRoleBindings().Get("cilogon-admins", metav1.GetOptions{})
-
-	if err != nil {
-		return admins, err
-	}
-
-	for _, subj := range binding.Subjects {
-		admins[subj.Name] = true
-	}
-	return admins, err
-}
-
 //handles the http requests for get pods
 func PodsHandler(w http.ResponseWriter, r *http.Request) {
 
@@ -211,7 +247,7 @@ func PodsHandler(w http.ResponseWriter, r *http.Request) {
 
 	if user, err := getUser(session.Values["userid"].(string)); err == nil {
 		ns = getUserNamespace(user.Email)
-		if user.IsAdmin {
+		if user.IsAdmin("") {
 			nsList, _ := clientset.Core().Namespaces().List(metav1.ListOptions{})
 			nss = nsList.Items
 			if r.URL.Query().Get("namespace") != "" {
@@ -224,7 +260,7 @@ func PodsHandler(w http.ResponseWriter, r *http.Request) {
 
 	podsList, _ := clientset.Core().Pods(ns).List(metav1.ListOptions{})
 
-	stVars := PodsTemplateVars{Pods: podsList.Items, Namespaces: nss, Namespace: ns, IndexTemplateVars: buildIndexTemplateVars(session)}
+	stVars := PodsTemplateVars{Pods: podsList.Items, Namespaces: nss, Namespace: ns, IndexTemplateVars: buildIndexTemplateVars(session, w, r)}
 
 	t, err := template.New("layout.tmpl").ParseFiles("templates/layout.tmpl", "templates/pods.tmpl")
 	if err != nil {
@@ -255,7 +291,7 @@ func NodesHandler(w http.ResponseWriter, r *http.Request) {
 
 	nodesList, _ := clientset.Core().Nodes().List(metav1.ListOptions{})
 
-	stVars := NodesTemplateVars{Nodes: nodesList.Items, IndexTemplateVars: buildIndexTemplateVars(session)}
+	stVars := NodesTemplateVars{Nodes: nodesList.Items, IndexTemplateVars: buildIndexTemplateVars(session, w, r)}
 
 	t, err := template.New("layout.tmpl").Funcs(template.FuncMap{
 		"hostToIp": func(host string) string {
@@ -352,22 +388,11 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 
 		if _, err := clientset.Core().Namespaces().Get(userNamespace, metav1.GetOptions{}); err != nil {
 			clientset.Core().Namespaces().Create(&v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: userNamespace}})
-			clientset.Core().LimitRanges(userNamespace).Create(&v1.LimitRange{
-				ObjectMeta: metav1.ObjectMeta{Name: userNamespace + "-mem"},
-				Spec: v1.LimitRangeSpec{
-					Limits: []v1.LimitRangeItem{
-						v1.LimitRangeItem{
-							Type: v1.LimitTypeContainer,
-							Default: map[v1.ResourceName]resource.Quantity{
-								v1.ResourceMemory: resource.MustParse("4Gi"),
-							},
-							DefaultRequest: map[v1.ResourceName]resource.Quantity{
-								v1.ResourceMemory: resource.MustParse("256Mi"),
-							},
-						},
-					},
-				},
-			})
+			if _, err := createNsLimits(userNamespace); err != nil {
+				http.Error(w, "Failed to create namespace "+userNamespace+" limits: %s" + err.Error(), http.StatusInternalServerError)
+				return
+			}
+
 		}
 
 		binding, err := clientset.Rbac().RoleBindings(userNamespace).Get("cilogon", metav1.GetOptions{})
@@ -429,8 +454,6 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if db, err := bolt.Open(path.Join(viper.GetString("storage_path"), "users.db"), 0600, &bolt.Options{Timeout: 5 * time.Second}); err == nil {
-			defer db.Close()
-
 			if err = db.Update(func(tx *bolt.Tx) error {
 				b, err := tx.CreateBucketIfNotExists([]byte("Users"))
 				if err != nil {
@@ -446,6 +469,7 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 			}); err != nil {
 				log.Printf("failed to update the users DB %s", err.Error())
 			}
+			db.Close()
 		} else {
 			log.Printf("failed to connect database %s", err.Error())
 		}
@@ -504,7 +528,7 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				w.Write([]byte(err.Error()))
 			} else {
-				err = t.Execute(w, ConfigTemplateVars{ConfigId: newId, IndexTemplateVars: buildIndexTemplateVars(session)})
+				err = t.Execute(w, ConfigTemplateVars{ConfigId: newId, IndexTemplateVars: buildIndexTemplateVars(session, w, r)})
 				if err != nil {
 					w.Write([]byte(err.Error()))
 				}
