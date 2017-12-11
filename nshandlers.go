@@ -3,15 +3,117 @@ package main
 import (
 	"fmt"
 	"html/template"
-	"k8s.io/api/core/v1"
-	rbacv1 "k8s.io/api/rbac/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/fields"
 	"log"
 	"net/http"
 	"strings"
+	"time"
+
+	client "github.com/dimm0/k8s_portal/pkg/apis/nautilus/v1alpha1"
+	"k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+
+	rbacv1 "k8s.io/api/rbac/v1"
+	apiextcs "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/cache"
 )
+
+func GetCrd() {
+	k8sconfig, err := rest.InClusterConfig()
+	if err != nil {
+		log.Fatal("Failed to do inclusterconfig: " + err.Error())
+		return
+	}
+
+	clientset, err = kubernetes.NewForConfig(k8sconfig)
+	if err != nil {
+		log.Fatal("Failed to do inclusterconfig new client: " + err.Error())
+	}
+
+	// create clientset and create our CRD, this only need to run once
+	clientset, err := apiextcs.NewForConfig(k8sconfig)
+	if err != nil {
+		panic(err.Error())
+	}
+	// note: if the CRD exist our CreateCRD function is set to exit without an error
+	err = client.CreateCRD(clientset)
+	if err != nil {
+		panic(err)
+	}
+
+	// Wait for the CRD to be created before we use it (only needed if its a new one)
+	time.Sleep(3 * time.Second)
+
+	// Create a new clientset which include our CRD schema
+	crdcs, scheme, err := client.NewClient(k8sconfig)
+	if err != nil {
+		panic(err)
+	}
+
+	// Create a CRD client interface
+	crdclient := client.CrdClient(crdcs, scheme, "default")
+
+	// Create a new Example object and write to k8s
+	user := &client.PRPUser{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   "example123",
+			Labels: map[string]string{"mylabel": "test"},
+		},
+		Spec: client.PRPUserSpec{
+			Foo: "example-text",
+			Bar: true,
+		},
+		Status: client.PRPUserStatus{
+			State:   "created",
+			Message: "Created, not processed yet",
+		},
+	}
+
+	result, err := crdclient.Create(user)
+	if err == nil {
+		fmt.Printf("CREATED: %#v\n", result)
+	} else if apierrors.IsAlreadyExists(err) {
+		fmt.Printf("ALREADY EXISTS: %#v\n", result)
+	} else {
+		fmt.Printf("ERROR CREATING: %s\n", err.Error())
+	}
+
+	// List all Example objects
+	items, err := crdclient.List(metav1.ListOptions{})
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("List:\n%s\n", items)
+
+	// Example Controller
+	// Watch for changes in Example objects and fire Add, Delete, Update callbacks
+	_, controller := cache.NewInformer(
+		crdclient.NewListWatch(),
+		&client.PRPUser{},
+		time.Minute*10,
+		cache.ResourceEventHandlerFuncs{
+			AddFunc: func(obj interface{}) {
+				fmt.Printf("add: %s \n", obj)
+			},
+			DeleteFunc: func(obj interface{}) {
+				fmt.Printf("delete: %s \n", obj)
+			},
+			UpdateFunc: func(oldObj, newObj interface{}) {
+				fmt.Printf("Update old: %s \n      New: %s\n", oldObj, newObj)
+			},
+		},
+	)
+
+	stop := make(chan struct{})
+	go controller.Run(stop)
+
+	// Wait forever
+	select {}
+}
 
 // Process the /namespaces path
 func NamespacesHandler(w http.ResponseWriter, r *http.Request) {

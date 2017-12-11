@@ -14,8 +14,6 @@ import (
 
 	oidc "github.com/coreos/go-oidc"
 	"github.com/gorilla/sessions"
-	"github.com/yaronha/kube-crd/client"
-	"github.com/yaronha/kube-crd/crd"
 
 	"github.com/spf13/viper"
 	"golang.org/x/net/context"
@@ -109,22 +107,22 @@ func main() {
 	// fmt.Printf("Clusterinfo: %v", clientset)
 
 	// note: if the CRD exist our CreateCRD function is set to exit without an error
-	err = crd.CreateCRD(clientset)
-	if err != nil {
-		panic(err)
-	}
-
-	// Wait for the CRD to be created before we use it (only needed if its a new one)
-	time.Sleep(3 * time.Second)
-
-	// Create a new clientset which include our CRD schema
-	crdcs, scheme, err := crd.NewClient(config)
-	if err != nil {
-		panic(err)
-	}
-
-	// Create a CRD client interface
-	crdclient := client.CrdClient(crdcs, scheme, "default")
+	// err = crd.CreateCRD(clientset)
+	// if err != nil {
+	// 	panic(err)
+	// }
+	//
+	// // Wait for the CRD to be created before we use it (only needed if its a new one)
+	// time.Sleep(3 * time.Second)
+	//
+	// // Create a new clientset which include our CRD schema
+	// crdcs, scheme, err := crd.NewClient(config)
+	// if err != nil {
+	// 	panic(err)
+	// }
+	//
+	// // Create a CRD client interface
+	// crdclient := client.CrdClient(crdcs, scheme, "default")
 
 	http.Handle("/media/", http.StripPrefix("/media/", http.FileServer(http.Dir("/media"))))
 
@@ -175,6 +173,10 @@ func main() {
 	http.HandleFunc("/logout", LogoutHandler)
 
 	log.Printf("listening on http://%s/", "127.0.0.1")
+
+	go func() {
+		GetCrd()
+	}()
 
 	log.Fatal(http.ListenAndServe(":80", nil))
 }

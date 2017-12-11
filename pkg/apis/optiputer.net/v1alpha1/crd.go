@@ -1,4 +1,4 @@
-package main
+package v1alpha1
 
 import (
 	"reflect"
@@ -7,12 +7,10 @@ import (
 	apiextcs "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/client-go/rest"
-
-	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -30,7 +28,7 @@ func CreateCRD(clientset apiextcs.Interface) error {
 		Spec: apiextv1beta1.CustomResourceDefinitionSpec{
 			Group:   CRDGroup,
 			Version: CRDVersion,
-			Scope:   apiextv1beta1.NamespaceScoped,
+			Scope:   apiextv1beta1.ClusterScoped,
 			Names: apiextv1beta1.CustomResourceDefinitionNames{
 				Plural: CRDPlural,
 				Kind:   reflect.TypeOf(PRPUser{}).Name(),
@@ -45,42 +43,6 @@ func CreateCRD(clientset apiextcs.Interface) error {
 	return err
 
 	// Note the original apiextensions example adds logic to wait for creation and exception handling
-}
-
-// Definition of our CRD PRPUser class
-type PRPUser struct {
-	meta_v1.TypeMeta   `json:",inline"`
-	meta_v1.ObjectMeta `json:"metadata"`
-	Spec               PRPUserSpec   `json:"spec"`
-	Status             PRPUserStatus `json:"status,omitempty"`
-}
-type PRPUserSpec struct {
-	Foo string `json:"foo"`
-	Bar bool   `json:"bar"`
-	Baz int    `json:"baz,omitempty"`
-}
-
-type PRPUserStatus struct {
-	State   string `json:"state,omitempty"`
-	Message string `json:"message,omitempty"`
-}
-
-type PRPUserList struct {
-	meta_v1.TypeMeta `json:",inline"`
-	meta_v1.ListMeta `json:"metadata"`
-	Items            []PRPUser `json:"items"`
-}
-
-// Create a  Rest client with the new CRD Schema
-var SchemeGroupVersion = schema.GroupVersion{Group: CRDGroup, Version: CRDVersion}
-
-func addKnownTypes(scheme *runtime.Scheme) error {
-	scheme.AddKnownTypes(SchemeGroupVersion,
-		&PRPUser{},
-		&PRPUserList{},
-	)
-	meta_v1.AddToGroupVersion(scheme, SchemeGroupVersion)
-	return nil
 }
 
 func NewClient(cfg *rest.Config) (*rest.RESTClient, *runtime.Scheme, error) {
@@ -159,3 +121,34 @@ func (f *crdclient) List(opts meta_v1.ListOptions) (*PRPUserList, error) {
 func (f *crdclient) NewListWatch() *cache.ListWatch {
 	return cache.NewListWatchFromClient(f.cl, f.plural, f.ns, fields.Everything())
 }
+
+// func createContext() (*opkit.Context, nautilusclient.NautilusV1alpha1Interface, error) {
+// 	config, err := rest.InClusterConfig()
+// 	if err != nil {
+// 		return nil, nil, fmt.Errorf("failed to get k8s config. %+v", err)
+// 	}
+//
+// 	clientset, err := kubernetes.NewForConfig(config)
+// 	if err != nil {
+// 		return nil, nil, fmt.Errorf("failed to get k8s client. %+v", err)
+// 	}
+//
+// 	apiExtClientset, err := apiextensionsclient.NewForConfig(config)
+// 	if err != nil {
+// 		return nil, nil, fmt.Errorf("failed to create k8s API extension clientset. %+v", err)
+// 	}
+//
+// 	sampleClientset, err := sampleclient.NewForConfig(config)
+// 	if err != nil {
+// 		return nil, nil, fmt.Errorf("failed to create sample clientset. %+v", err)
+// 	}
+//
+// 	context := &opkit.Context{
+// 		Clientset:             clientset,
+// 		APIExtensionClientset: apiExtClientset,
+// 		Interval:              500 * time.Millisecond,
+// 		Timeout:               60 * time.Second,
+// 	}
+// 	return context, sampleClientset, nil
+//
+// }
