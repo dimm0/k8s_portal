@@ -249,12 +249,6 @@
 
 [[projects]]
   branch = "master"
-  name = "github.com/yaronha/kube-crd"
-  packages = ["client","crd"]
-  revision = "f500ba576f5436399962f9eebfcc131c875121ae"
-
-[[projects]]
-  branch = "master"
   name = "golang.org/x/crypto"
   packages = ["ed25519","ed25519/internal/edwards25519","ssh/terminal"]
   revision = "94eea52f7b742c7cbe0b03b22f0c4c8631ece122"
@@ -358,6 +352,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "b6935b89d377c74a209032de2995b2d2ee7e1c3eca323fc2405123f7f24f84d2"
+  inputs-digest = "be95a36ce5a915d8c0b18e6dc15109608bc131218a05d24fa376ba09944ce6d4"
   solver-name = "gps-cdcl"
   solver-version = 1

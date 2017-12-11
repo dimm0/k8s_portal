@@ -17,7 +17,7 @@ import (
 const (
 	CRDPlural   string = "prpusers"
 	CRDGroup    string = "optiputer.net"
-	CRDVersion  string = "v1"
+	CRDVersion  string = "v1alpha1"
 	FullCRDName string = CRDPlural + "." + CRDGroup
 )
 

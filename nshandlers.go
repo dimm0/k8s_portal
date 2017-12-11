@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	client "github.com/dimm0/k8s_portal/pkg/apis/nautilus/v1alpha1"
+	client "github.com/dimm0/k8s_portal/pkg/apis/optiputer.net/v1alpha1"
 	"k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
@@ -89,8 +89,6 @@ func GetCrd() {
 	}
 	fmt.Printf("List:\n%s\n", items)
 
-	// Example Controller
-	// Watch for changes in Example objects and fire Add, Delete, Update callbacks
 	_, controller := cache.NewInformer(
 		crdclient.NewListWatch(),
 		&client.PRPUser{},
