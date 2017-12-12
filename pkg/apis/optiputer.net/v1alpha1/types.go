@@ -23,6 +23,7 @@ type PRPUser struct {
 }
 
 type PRPUserSpec struct {
+	UserID       string `json:""`
 	ISS          string `json:""`
 	Email        string `json:""`
 	Name         string `json:""`

@@ -74,7 +74,7 @@ func NamespacesHandler(w http.ResponseWriter, r *http.Request) {
 		if ns, err := clientset.Core().Namespaces().List(
 			metav1.ListOptions{
 				FieldSelector: fields.OneTermEqualSelector("metadata.name", createNsName).String()}); len(ns.Items) == 0 && err == nil {
-			if user, err := crdclient.Get(session.Values["userid"].(string)); err != nil {
+			if user, err := GetUser(session.Values["userid"].(string)); err != nil {
 				if _, err := clientset.Core().Namespaces().Create(&v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: createNsName}}); err != nil {
 					session.AddFlash(fmt.Sprintf("Error creating the namespace: %s", err.Error()))
 					session.Save(r, w)
@@ -105,7 +105,7 @@ func NamespacesHandler(w http.ResponseWriter, r *http.Request) {
 			session.Save(r, w)
 		} else {
 			if _, err := clientset.Core().Namespaces().List(metav1.SingleObject(metav1.ObjectMeta{Name: delNsName})); err == nil {
-				if user, err := crdclient.Get(session.Values["userid"].(string)); err != nil {
+				if user, err := GetUser(session.Values["userid"].(string)); err != nil {
 					if !user.IsAdmin(delNsName) {
 						session.AddFlash(fmt.Sprintf("You don't have permissions to delete namespace %s", delNsName))
 						session.Save(r, w)

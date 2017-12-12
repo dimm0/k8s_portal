@@ -33,12 +33,12 @@
       </button>
       <div class="collapse navbar-collapse" id="navbarResponsive">
           <ul class="navbar-nav ml-auto">
-              {{if not .User.UserID}}
+              {{if not .User.Name}}
               <li class="nav-item">
                 <a class="nav-link" id="loginbtn" href="auth">Login</a>
               </li>
               {{end}}
-              {{if .User.UserID}}
+              {{if .User.Name}}
                 {{if .User.IsAdmin ""}}
                   <li class="nav-item">
                       <a class="nav-link" href="admin">Admin</a>

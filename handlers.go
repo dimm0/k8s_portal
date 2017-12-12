@@ -78,7 +78,7 @@ func buildIndexTemplateVars(session *sessions.Session, w http.ResponseWriter, r 
 		return returnVars
 	}
 
-	if user, err := crdclient.Get(session.Values["userid"].(string)); err != nil {
+	if user, err := GetUser(session.Values["userid"].(string)); err != nil {
 		log.Printf("Error getting the user: %s", err.Error())
 	} else {
 		returnVars.User = user
@@ -93,6 +93,13 @@ func buildIndexTemplateVars(session *sessions.Session, w http.ResponseWriter, r 
 	}
 
 	return returnVars
+}
+
+func GetUser(userID string) (*client.PRPUser, error) {
+	userName := strings.Replace(userID, "://", "-", -1)
+	userName = strings.Replace(userName, "/", "-", -1)
+
+	return crdclient.Get(userName)
 }
 
 func RootHandler(w http.ResponseWriter, r *http.Request) {
@@ -176,7 +183,7 @@ func PodsHandler(w http.ResponseWriter, r *http.Request) {
 	var ns string
 	nss := []v1.Namespace{}
 
-	user, err := crdclient.Get(session.Values["userid"].(string))
+	user, err := GetUser(session.Values["userid"].(string))
 	if err != nil {
 		w.Write([]byte(err.Error()))
 		return
@@ -356,15 +363,19 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 			Name string `json:"name"`
 			IDP  string `json:"idp_name"`
 		}
-		if err := userInfo.Claims(&Claims); err != nil {
+		if err = userInfo.Claims(&Claims); err != nil {
 			log.Printf("Error getting userInfo from claims %s", err.Error())
 		}
 
+		userName := strings.Replace(userInfo.Subject, "://", "-", -1)
+		userName = strings.Replace(userName, "/", "-", -1)
+
 		user := &client.PRPUser{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: "userInfo.Subject",
+				Name: userName,
 			},
 			Spec: client.PRPUserSpec{
+				UserID:       userInfo.Subject,
 				ISS:          idToken.Issuer,
 				Email:        userInfo.Email,
 				Name:         Claims.Name,
@@ -395,7 +406,7 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 		delete(co.Clusters, "")
 
 		ns := "default"
-		if user, err := crdclient.Get(idToken.Subject); err != nil {
+		if user, err := GetUser(idToken.Subject); err != nil {
 			log.Printf("Error getting the user: %s", err.Error())
 		} else {
 			ns = getUserNamespace(user.Spec.Email)
