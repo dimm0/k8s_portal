@@ -23,13 +23,11 @@ type PRPUser struct {
 }
 
 type PRPUserSpec struct {
-	UserID       string `json:""`
-	ISS          string `json:""`
-	Email        string `json:""`
-	Name         string `json:""`
-	IDP          string `json:""`
-	IDToken      string `json:""`
-	RefreshToken string `json:""`
+	UserID string `json:""`
+	ISS    string `json:""`
+	Email  string `json:""`
+	Name   string `json:""`
+	IDP    string `json:""`
 }
 
 type PRPUserStatus struct {
