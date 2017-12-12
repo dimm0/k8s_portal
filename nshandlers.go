@@ -224,7 +224,7 @@ func createNsRoleBinding(nsName string, roleName string, user *client.PRPUser) (
 		Subjects: []rbacv1.Subject{rbacv1.Subject{
 			Kind:     "User",
 			APIGroup: "rbac.authorization.k8s.io",
-			Name:     user.Spec.ISS + "#" + user.Name}},
+			Name:     user.Spec.ISS + "#" + user.Spec.UserID}},
 	})
 }
 
