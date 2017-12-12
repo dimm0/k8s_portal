@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"regexp"
 	"strings"
 	"sync"
@@ -13,12 +14,14 @@ import (
 
 	oidc "github.com/coreos/go-oidc"
 	client "github.com/dimm0/k8s_portal/pkg/apis/optiputer.net/v1alpha1"
+	"github.com/golang/glog"
 	"github.com/gorilla/sessions"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
+	rest "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd/api"
 	clientcmdlatest "k8s.io/client-go/tools/clientcmd/api/latest"
+	certutil "k8s.io/client-go/util/cert"
 
 	"github.com/spf13/viper"
 	"golang.org/x/oauth2"
@@ -189,21 +192,40 @@ func PodsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	k8sconfig, err := rest.InClusterConfig()
-	if err != nil {
-		w.Write([]byte(err.Error()))
+	// k8sconfig, err := rest.InClusterConfig()
+	// if err != nil {
+	// 	w.Write([]byte(err.Error()))
+	// 	return
+	// }
+	//
+
+	host, port := os.Getenv("KUBERNETES_SERVICE_HOST"), os.Getenv("KUBERNETES_SERVICE_PORT")
+	if len(host) == 0 || len(port) == 0 {
+		w.Write([]byte("unable to load in-cluster configuration, KUBERNETES_SERVICE_HOST and KUBERNETES_SERVICE_PORT must be defined"))
 		return
 	}
 
-	k8sconfig.AuthProvider = &api.AuthProviderConfig{
-		Name: "oidc",
-		Config: map[string]string{
-			"id-token":       user.Spec.IDToken,
-			"refresh-token":  user.Spec.RefreshToken,
-			"client-id":      viper.GetString("client_id"),
-			"client-secret":  viper.GetString("client_secret"),
-			"idp-issuer-url": user.Spec.ISS,
+	tlsClientConfig := rest.TLSClientConfig{}
+	rootCAFile := "/var/run/secrets/kubernetes.io/serviceaccount/" + v1.ServiceAccountRootCAKey
+	if _, err := certutil.NewPool(rootCAFile); err != nil {
+		glog.Errorf("Expected to load root CA config from %s, but got err: %v", rootCAFile, err)
+	} else {
+		tlsClientConfig.CAFile = rootCAFile
+	}
+
+	k8sconfig := &rest.Config{
+		Host: "https://" + net.JoinHostPort(host, port),
+		AuthProvider: &api.AuthProviderConfig{
+			Name: "oidc",
+			Config: map[string]string{
+				"id-token":       user.Spec.IDToken,
+				"refresh-token":  user.Spec.RefreshToken,
+				"client-id":      viper.GetString("client_id"),
+				"client-secret":  viper.GetString("client_secret"),
+				"idp-issuer-url": user.Spec.ISS,
+			},
 		},
+		TLSClientConfig: tlsClientConfig,
 	}
 
 	userclientset, err := kubernetes.NewForConfig(k8sconfig)
