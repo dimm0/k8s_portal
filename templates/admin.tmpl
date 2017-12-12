@@ -1,27 +1,24 @@
 {{define "body"}}
   <div class="container">
-    {{range $k, $v := .Namespace}}
-      <h3><a href="/pods?namespace={{$k}}">{{$k}}</a></h3>
-      <table class="table table-striped">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Name</th>
-              <th>IDP</th>
-              <th>Email</th>
-            </tr>
-          </thead>
-          <tbody>
-            {{range $v.User}}
-            <tr{{if .IsAdmin $k}} style="background-color:rgba(255, 179, 0, 0.18)"{{end}}>
-              <td>{{.UserID}}</td>
-              <td>{{.Name}}</td>
-              <td>{{.IDP}}</td>
-              <td>{{.Email}}</td>
-            </tr>
-            {{end}}
-          </tbody>
-        </table>
-    {{end}}
+    <table class="table table-striped">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>IDP</th>
+            <th>Email</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range $v.Users}}
+          <tr>
+            <td>{{.Spec.UserID}}</td>
+            <td>{{.Spec.Name}}</td>
+            <td>{{.Spec.IDP}}</td>
+            <td>{{.Spec.Email}}</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
   </div>
 {{end}}

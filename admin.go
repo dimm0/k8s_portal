@@ -1,13 +1,18 @@
 package main
 
 import (
+	"fmt"
 	"html/template"
 	"log"
 	"net/http"
+
+	client "github.com/dimm0/k8s_portal/pkg/apis/optiputer.net/v1alpha1"
+	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type AdminTemplateVars struct {
 	IndexTemplateVars
+	Users []client.PRPUser
 }
 
 func AdminHandler(w http.ResponseWriter, r *http.Request) {
@@ -26,7 +31,15 @@ func AdminHandler(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(err.Error()))
 	} else {
 
-		vars := AdminTemplateVars{buildIndexTemplateVars(session, w, r)}
+		users := []client.PRPUser{}
+		if curusers, err := crdclient.List(meta_v1.ListOptions{}); err != nil {
+			users = curusers.Items
+		} else {
+			session.AddFlash(fmt.Sprintf("Unexpected error: %s", err.Error()))
+			session.Save(r, w)
+		}
+
+		vars := AdminTemplateVars{buildIndexTemplateVars(session, w, r), users}
 
 		err = t.Execute(w, vars)
 		if err != nil {

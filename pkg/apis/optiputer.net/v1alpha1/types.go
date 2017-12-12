@@ -106,3 +106,17 @@ func (user PRPUser) IsClusterAdmin() bool {
 	}
 	return false
 }
+
+func (user PRPUser) GetUserClientset() (*kubernetes.Clientset, error) {
+	userk8sconfig, err := rest.InClusterConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	userk8sconfig.Impersonate = rest.ImpersonationConfig{
+		UserName: user.Spec.ISS + "#" + user.Spec.UserID,
+	}
+
+	return kubernetes.NewForConfig(userk8sconfig)
+
+}

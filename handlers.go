@@ -15,8 +15,6 @@ import (
 	client "github.com/dimm0/k8s_portal/pkg/apis/optiputer.net/v1alpha1"
 	"github.com/gorilla/sessions"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/client-go/kubernetes"
-	rest "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd/api"
 	clientcmdlatest "k8s.io/client-go/tools/clientcmd/api/latest"
 
@@ -173,6 +171,8 @@ func PodsHandler(w http.ResponseWriter, r *http.Request) {
 	session, err := filestore.Get(r, "prp-session")
 	if err != nil {
 		log.Printf("Error getting the session: %s", err.Error())
+		http.Redirect(w, r, "/", http.StatusFound)
+		return
 	}
 
 	if session.IsNew || session.Values["userid"] == nil {
@@ -180,55 +180,53 @@ func PodsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var ns string
 	nss := []v1.Namespace{}
 
 	user, err := GetUser(session.Values["userid"].(string))
 	if err != nil {
-		w.Write([]byte(err.Error()))
-		return
+		session.AddFlash(fmt.Sprintf("Unexpected error: %s", err.Error()))
+		session.Save(r, w)
+		http.Redirect(w, r, "/", http.StatusFound)
 	}
 
-	userk8sconfig, err := rest.InClusterConfig()
+	userclientset, err := user.GetUserClientset()
 	if err != nil {
-		w.Write([]byte(err.Error()))
-		return
-	}
-
-	userk8sconfig.Impersonate = rest.ImpersonationConfig{
-		UserName: user.Spec.UserID,
-	}
-
-	userclientset, err := kubernetes.NewForConfig(userk8sconfig)
-	if err != nil {
-		w.Write([]byte(err.Error()))
-		return
+		session.AddFlash(fmt.Sprintf("Unexpected error: %s", err.Error()))
+		session.Save(r, w)
+		http.Redirect(w, r, "/", http.StatusFound)
 	}
 
 	nsList, err := clientset.Core().Namespaces().List(metav1.ListOptions{})
 	if err != nil {
-		w.Write([]byte(err.Error()))
-		return
+		session.AddFlash(fmt.Sprintf("Unexpected error: %s", err.Error()))
+		session.Save(r, w)
+		http.Redirect(w, r, "/", http.StatusFound)
 	}
 
 	nss = nsList.Items
+	var ns = getUserNamespace(user.Spec.Email)
 	if r.URL.Query().Get("namespace") != "" {
 		ns = r.URL.Query().Get("namespace")
 	}
 
 	if podsList, err := userclientset.Core().Pods(ns).List(metav1.ListOptions{}); err != nil {
-		w.Write([]byte(err.Error()))
-		return
+		session.AddFlash(fmt.Sprintf("Unexpected error: %s", err.Error()))
+		session.Save(r, w)
+		http.Redirect(w, r, "/", http.StatusFound)
 	} else {
 		stVars := PodsTemplateVars{Pods: podsList.Items, Namespaces: nss, Namespace: ns, IndexTemplateVars: buildIndexTemplateVars(session, w, r)}
 
 		t, err := template.New("layout.tmpl").ParseFiles("templates/layout.tmpl", "templates/pods.tmpl")
 		if err != nil {
-			w.Write([]byte(err.Error()))
+			session.AddFlash(fmt.Sprintf("Unexpected error: %s", err.Error()))
+			session.Save(r, w)
+			http.Redirect(w, r, "/", http.StatusFound)
 		} else {
 			err = t.ExecuteTemplate(w, "layout.tmpl", stVars)
 			if err != nil {
-				w.Write([]byte(err.Error()))
+				session.AddFlash(fmt.Sprintf("Unexpected error: %s", err.Error()))
+				session.Save(r, w)
+				http.Redirect(w, r, "/", http.StatusFound)
 			}
 		}
 	}
