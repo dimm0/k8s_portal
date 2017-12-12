@@ -32,7 +32,7 @@ func AdminHandler(w http.ResponseWriter, r *http.Request) {
 	} else {
 
 		users := []client.PRPUser{}
-		if curusers, err := crdclient.List(meta_v1.ListOptions{}); err != nil {
+		if curusers, err := crdclient.List(meta_v1.ListOptions{}); err == nil {
 			users = curusers.Items
 		} else {
 			session.AddFlash(fmt.Sprintf("Unexpected error: %s", err.Error()))

@@ -75,6 +75,8 @@ func NamespacesHandler(w http.ResponseWriter, r *http.Request) {
 			metav1.ListOptions{
 				FieldSelector: fields.OneTermEqualSelector("metadata.name", createNsName).String()}); len(ns.Items) == 0 && err == nil {
 			if user, err := GetUser(session.Values["userid"].(string)); err != nil {
+				log.Printf("Error getting the user: %s", err.Error())
+			} else {
 				if _, err := clientset.Core().Namespaces().Create(&v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: createNsName}}); err != nil {
 					session.AddFlash(fmt.Sprintf("Error creating the namespace: %s", err.Error()))
 					session.Save(r, w)
@@ -88,8 +90,6 @@ func NamespacesHandler(w http.ResponseWriter, r *http.Request) {
 						log.Printf("Error creating userbinding %s", err.Error())
 					}
 				}
-			} else {
-				log.Printf("Error getting the user: %s", err.Error())
 			}
 		} else {
 			session.AddFlash(fmt.Sprintf("The namespace %s already exists or error %v", createNsName, err))

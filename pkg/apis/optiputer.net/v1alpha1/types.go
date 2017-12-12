@@ -97,7 +97,7 @@ func (user PRPUser) IsClusterAdmin() bool {
 		for _, bind := range bindings.Items {
 			if !strings.HasPrefix(bind.Name, "system") && (bind.RoleRef.Name == "admin" || bind.RoleRef.Name == "cluster-admin") {
 				for _, subj := range bind.Subjects {
-					if subj.Kind == rbacv1.UserKind && user.Spec.ISS+"#"+user.Name == subj.Name {
+					if subj.Kind == rbacv1.UserKind && user.Spec.ISS+"#"+user.Spec.UserID == subj.Name {
 						return true
 					}
 				}
