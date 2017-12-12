@@ -99,7 +99,7 @@ func GetUser(userID string) (*client.PRPUser, error) {
 	userName := strings.Replace(userID, "://", "-", -1)
 	userName = strings.Replace(userName, "/", "-", -1)
 
-	return crdclient.Get(userName)
+	return crdclient.Get(strings.ToLower(userName))
 }
 
 func RootHandler(w http.ResponseWriter, r *http.Request) {
@@ -372,7 +372,7 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 
 		user := &client.PRPUser{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: userName,
+				Name: strings.ToLower(userName),
 			},
 			Spec: client.PRPUserSpec{
 				UserID:       userInfo.Subject,
