@@ -70,6 +70,7 @@ func MakeCrdClient(cl *rest.RESTClient, scheme *runtime.Scheme, namespace string
 		codec: runtime.NewParameterCodec(scheme)}
 }
 
+// +k8s:deepcopy-gen=false
 type CrdClient struct {
 	cl     *rest.RESTClient
 	ns     string
