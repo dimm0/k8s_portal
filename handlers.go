@@ -1,21 +1,22 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"html/template"
 	"log"
 	"net"
 	"net/http"
-	"path"
 	"regexp"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/boltdb/bolt"
 	oidc "github.com/coreos/go-oidc"
+	client "github.com/dimm0/k8s_portal/pkg/apis/optiputer.net/v1alpha1"
 	"github.com/gorilla/sessions"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd/api"
 	clientcmdlatest "k8s.io/client-go/tools/clientcmd/api/latest"
 
@@ -25,7 +26,6 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
@@ -38,18 +38,10 @@ var states = map[string]string{}
 var keysLock = sync.RWMutex{}
 var statesLock = sync.RWMutex{}
 
-type PrpUser struct {
-	UserID  string
-	ISS     string
-	Email   string
-	Name    string
-	IDP     string
-}
-
 type IndexTemplateVars struct {
-	User       PrpUser
+	User       *client.PRPUser
 	ClusterUrl string
-	Flashes []string
+	Flashes    []string
 }
 
 type ConfigTemplateVars struct {
@@ -75,79 +67,18 @@ type NamespacesTemplateVars struct {
 }
 
 type NamespaceUserBinding struct {
-	Namespace v1.Namespace
-	RoleBindings []rbacv1.RoleBinding
+	Namespace           v1.Namespace
+	RoleBindings        []rbacv1.RoleBinding
 	ClusterRoleBindings []rbacv1.ClusterRoleBinding
 }
 
-func getUser(userid string) (PrpUser, error) {
-	var user PrpUser
-	if db, err := bolt.Open(path.Join(viper.GetString("storage_path"), "users.db"), 0600, &bolt.Options{Timeout: 5 * time.Second}); err == nil {
-
-		if err = db.View(func(tx *bolt.Tx) error {
-			b := tx.Bucket([]byte("Users"))
-
-			v := b.Get([]byte(userid))
-			if err = json.Unmarshal(v, &user); err != nil {
-				return err
-			}
-
-			db.Close()
-			return nil
-		}); err != nil {
-			return user, err
-		}
-	}
-
-	return user, nil
-}
-
-func (user PrpUser) IsAdmin(namespace string) bool {
-	if user.IsClusterAdmin() {
-		return true
-	}
-	if namespace != "" {
-		if bindings, err := clientset.Rbac().RoleBindings(namespace).List(metav1.ListOptions{}); err != nil {
-			return false
-		} else {
-			for _, bind := range bindings.Items {
-				if bind.RoleRef.Name == "admin" || bind.RoleRef.Name == "cluster-admin" {
-					for _, subj := range bind.Subjects {
-						if subj.Kind == rbacv1.UserKind && user.ISS + "#" + user.UserID == subj.Name {
-							return true
-						}
-					}
-				}
-			}
-		}
-	}
-	return false
-}
-
-func (user PrpUser) IsClusterAdmin() bool {
-	if bindings, err := clientset.Rbac().ClusterRoleBindings().List(metav1.ListOptions{}); err != nil {
-		return false
-	} else {
-		for _, bind := range bindings.Items {
-			if !strings.HasPrefix(bind.Name, "system") && (bind.RoleRef.Name == "admin" || bind.RoleRef.Name == "cluster-admin") {
-				for _, subj := range bind.Subjects {
-					if subj.Kind == rbacv1.UserKind && user.ISS + "#" + user.UserID == subj.Name {
-						return true
-					}
-				}
-			}
-		}
-	}
-	return false
-}
-
 func buildIndexTemplateVars(session *sessions.Session, w http.ResponseWriter, r *http.Request) IndexTemplateVars {
-	returnVars := IndexTemplateVars{User: PrpUser{}, ClusterUrl: viper.GetString("cluster_url")}
+	returnVars := IndexTemplateVars{User: &client.PRPUser{}, ClusterUrl: viper.GetString("cluster_url")}
 	if session.Values["userid"] == nil {
 		return returnVars
 	}
 
-	if user, err := getUser(session.Values["userid"].(string)); err != nil {
+	if user, err := crdclient.Get(session.Values["userid"].(string)); err != nil {
 		log.Printf("Error getting the user: %s", err.Error())
 	} else {
 		returnVars.User = user
@@ -158,7 +89,7 @@ func buildIndexTemplateVars(session *sessions.Session, w http.ResponseWriter, r 
 		for _, fl := range flashes {
 			returnVars.Flashes = append(returnVars.Flashes, fl.(string))
 		}
-		session.Save(r,w)
+		session.Save(r, w)
 	}
 
 	return returnVars
@@ -245,32 +176,63 @@ func PodsHandler(w http.ResponseWriter, r *http.Request) {
 	var ns string
 	nss := []v1.Namespace{}
 
-	if user, err := getUser(session.Values["userid"].(string)); err == nil {
-		ns = getUserNamespace(user.Email)
-		if user.IsAdmin("") {
-			nsList, _ := clientset.Core().Namespaces().List(metav1.ListOptions{})
-			nss = nsList.Items
-			if r.URL.Query().Get("namespace") != "" {
-				ns = r.URL.Query().Get("namespace")
-			}
-		}
-	} else {
-		log.Printf("Error getting the user: %s", err.Error())
-	}
-
-	podsList, _ := clientset.Core().Pods(ns).List(metav1.ListOptions{})
-
-	stVars := PodsTemplateVars{Pods: podsList.Items, Namespaces: nss, Namespace: ns, IndexTemplateVars: buildIndexTemplateVars(session, w, r)}
-
-	t, err := template.New("layout.tmpl").ParseFiles("templates/layout.tmpl", "templates/pods.tmpl")
+	user, err := crdclient.Get(session.Values["userid"].(string))
 	if err != nil {
 		w.Write([]byte(err.Error()))
+		return
+	}
+
+	k8sconfig, err := rest.InClusterConfig()
+	if err != nil {
+		w.Write([]byte(err.Error()))
+		return
+	}
+
+	k8sconfig.AuthProvider = &api.AuthProviderConfig{
+		Name: "oidc",
+		Config: map[string]string{
+			"id-token":       user.Spec.IDToken,
+			"refresh-token":  user.Spec.RefreshToken,
+			"client-id":      viper.GetString("client_id"),
+			"client-secret":  viper.GetString("client_secret"),
+			"idp-issuer-url": user.Spec.ISS,
+		},
+	}
+
+	userclientset, err := kubernetes.NewForConfig(k8sconfig)
+	if err != nil {
+		w.Write([]byte(err.Error()))
+		return
+	}
+
+	nsList, err := clientset.Core().Namespaces().List(metav1.ListOptions{})
+	if err != nil {
+		w.Write([]byte(err.Error()))
+		return
+	}
+
+	nss = nsList.Items
+	if r.URL.Query().Get("namespace") != "" {
+		ns = r.URL.Query().Get("namespace")
+	}
+
+	if podsList, err := userclientset.Core().Pods(ns).List(metav1.ListOptions{}); err != nil {
+		w.Write([]byte(err.Error()))
+		return
 	} else {
-		err = t.ExecuteTemplate(w, "layout.tmpl", stVars)
+		stVars := PodsTemplateVars{Pods: podsList.Items, Namespaces: nss, Namespace: ns, IndexTemplateVars: buildIndexTemplateVars(session, w, r)}
+
+		t, err := template.New("layout.tmpl").ParseFiles("templates/layout.tmpl", "templates/pods.tmpl")
 		if err != nil {
 			w.Write([]byte(err.Error()))
+		} else {
+			err = t.ExecuteTemplate(w, "layout.tmpl", stVars)
+			if err != nil {
+				w.Write([]byte(err.Error()))
+			}
 		}
 	}
+
 }
 
 func NodesHandler(w http.ResponseWriter, r *http.Request) {
@@ -382,61 +344,6 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Failed to get userinfo: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
-		userID := idToken.Issuer + "#" + idToken.Subject
-
-		userNamespace := getUserNamespace(userInfo.Email)
-
-		if _, err := clientset.Core().Namespaces().Get(userNamespace, metav1.GetOptions{}); err != nil {
-			clientset.Core().Namespaces().Create(&v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: userNamespace}})
-			if _, err := createNsLimits(userNamespace); err != nil {
-				http.Error(w, "Failed to create namespace "+userNamespace+" limits: %s" + err.Error(), http.StatusInternalServerError)
-				return
-			}
-
-		}
-
-		binding, err := clientset.Rbac().RoleBindings(userNamespace).Get("cilogon", metav1.GetOptions{})
-		if err != nil {
-			binding, err = clientset.Rbac().RoleBindings(userNamespace).Create(&rbacv1.RoleBinding{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "cilogon",
-				},
-				RoleRef: rbacv1.RoleRef{
-					APIGroup: "rbac.authorization.k8s.io",
-					Kind:     "ClusterRole",
-					Name:     "cilogon-edit",
-				},
-				Subjects: []rbacv1.Subject{rbacv1.Subject{Kind: "User", APIGroup: "rbac.authorization.k8s.io", Name: userID}},
-			})
-			if err != nil {
-				log.Printf("Error creating userbinding %s\n", err.Error())
-			}
-		} else {
-			found := false
-			for _, subj := range binding.Subjects {
-				if subj.Name == userID {
-					found = true
-				}
-			}
-
-			if !found {
-				newUser := UserPatchJson{}
-				newUser.Op = "add"
-				newUser.Path = "/subjects/-"
-				newUser.Value.Kind = "User"
-				newUser.Value.Name = userID
-				newUser.Value.ApiGroup = "rbac.authorization.k8s.io"
-				userStr, _ := json.Marshal([]UserPatchJson{newUser})
-				log.Printf("Doing patch %s", userStr)
-
-				patchres, err := clientset.Rbac().RoleBindings(userNamespace).Patch("cilogon", types.JSONPatchType, userStr, "")
-				if err != nil {
-					log.Printf("Error doing patch %s\n", err.Error())
-				} else {
-					log.Printf("Success doing patch %v\n", patchres)
-				}
-			}
-		}
 
 		session.Values["userid"] = userInfo.Subject
 		if e := session.Save(r, w); e != nil {
@@ -453,25 +360,31 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 			log.Printf("Error getting userInfo from claims %s", err.Error())
 		}
 
-		if db, err := bolt.Open(path.Join(viper.GetString("storage_path"), "users.db"), 0600, &bolt.Options{Timeout: 5 * time.Second}); err == nil {
-			if err = db.Update(func(tx *bolt.Tx) error {
-				b, err := tx.CreateBucketIfNotExists([]byte("Users"))
-				if err != nil {
-					return fmt.Errorf("create bucket: %s", err)
-				}
+		user := &client.PRPUser{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "userInfo.Subject",
+			},
+			Spec: client.PRPUserSpec{
+				ISS:          idToken.Issuer,
+				Email:        userInfo.Email,
+				Name:         Claims.Name,
+				IDP:          Claims.IDP,
+				IDToken:      oauth2Token.Extra("id_token").(string),
+				RefreshToken: oauth2Token.RefreshToken,
+			},
+			Status: client.PRPUserStatus{
+				State:   "created",
+				Message: "Created, not processed yet",
+			},
+		}
 
-				if buf, err := json.Marshal(PrpUser{Email: userInfo.Email, UserID: userInfo.Subject, Name: Claims.Name, IDP: Claims.IDP, ISS: idToken.Issuer}); err != nil {
-					return err
-				} else if err := b.Put([]byte(userInfo.Subject), buf); err != nil {
-					return err
-				}
-				return nil
-			}); err != nil {
-				log.Printf("failed to update the users DB %s", err.Error())
-			}
-			db.Close()
+		result, err := crdclient.Create(user)
+		if err == nil {
+			fmt.Printf("CREATED USER: %#v\n", result)
+		} else if apierrors.IsAlreadyExists(err) {
+			fmt.Printf("ALREADY EXISTS USER: %#v\n", result)
 		} else {
-			log.Printf("failed to connect database %s", err.Error())
+			fmt.Printf("ERROR CREATING USER: %s\n", err.Error())
 		}
 
 		http.Redirect(w, r, "/", http.StatusFound)
@@ -482,10 +395,10 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 		delete(co.Clusters, "")
 
 		ns := "default"
-		if user, err := getUser(idToken.Subject); err != nil {
+		if user, err := crdclient.Get(idToken.Subject); err != nil {
 			log.Printf("Error getting the user: %s", err.Error())
 		} else {
-			ns = getUserNamespace(user.Email)
+			ns = getUserNamespace(user.Spec.Email)
 		}
 
 		co.Contexts = map[string]*api.Context{

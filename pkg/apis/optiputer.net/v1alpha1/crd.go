@@ -65,19 +65,19 @@ func NewClient(cfg *rest.Config) (*rest.RESTClient, *runtime.Scheme, error) {
 	return client, scheme, nil
 }
 
-func CrdClient(cl *rest.RESTClient, scheme *runtime.Scheme, namespace string) *crdclient {
-	return &crdclient{cl: cl, ns: namespace, plural: CRDPlural,
+func MakeCrdClient(cl *rest.RESTClient, scheme *runtime.Scheme, namespace string) *CrdClient {
+	return &CrdClient{cl: cl, ns: namespace, plural: CRDPlural,
 		codec: runtime.NewParameterCodec(scheme)}
 }
 
-type crdclient struct {
+type CrdClient struct {
 	cl     *rest.RESTClient
 	ns     string
 	plural string
 	codec  runtime.ParameterCodec
 }
 
-func (f *crdclient) Create(obj *PRPUser) (*PRPUser, error) {
+func (f *CrdClient) Create(obj *PRPUser) (*PRPUser, error) {
 	var result PRPUser
 	err := f.cl.Post().
 		Namespace(f.ns).Resource(f.plural).
@@ -85,7 +85,7 @@ func (f *crdclient) Create(obj *PRPUser) (*PRPUser, error) {
 	return &result, err
 }
 
-func (f *crdclient) Update(obj *PRPUser) (*PRPUser, error) {
+func (f *CrdClient) Update(obj *PRPUser) (*PRPUser, error) {
 	var result PRPUser
 	err := f.cl.Put().
 		Namespace(f.ns).Resource(f.plural).
@@ -93,14 +93,14 @@ func (f *crdclient) Update(obj *PRPUser) (*PRPUser, error) {
 	return &result, err
 }
 
-func (f *crdclient) Delete(name string, options *meta_v1.DeleteOptions) error {
+func (f *CrdClient) Delete(name string, options *meta_v1.DeleteOptions) error {
 	return f.cl.Delete().
 		Namespace(f.ns).Resource(f.plural).
 		Name(name).Body(options).Do().
 		Error()
 }
 
-func (f *crdclient) Get(name string) (*PRPUser, error) {
+func (f *CrdClient) Get(name string) (*PRPUser, error) {
 	var result PRPUser
 	err := f.cl.Get().
 		Namespace(f.ns).Resource(f.plural).
@@ -108,7 +108,7 @@ func (f *crdclient) Get(name string) (*PRPUser, error) {
 	return &result, err
 }
 
-func (f *crdclient) List(opts meta_v1.ListOptions) (*PRPUserList, error) {
+func (f *CrdClient) List(opts meta_v1.ListOptions) (*PRPUserList, error) {
 	var result PRPUserList
 	err := f.cl.Get().
 		Namespace(f.ns).Resource(f.plural).
@@ -118,37 +118,6 @@ func (f *crdclient) List(opts meta_v1.ListOptions) (*PRPUserList, error) {
 }
 
 // Create a new List watch for our TPR
-func (f *crdclient) NewListWatch() *cache.ListWatch {
+func (f *CrdClient) NewListWatch() *cache.ListWatch {
 	return cache.NewListWatchFromClient(f.cl, f.plural, f.ns, fields.Everything())
 }
-
-// func createContext() (*opkit.Context, nautilusclient.NautilusV1alpha1Interface, error) {
-// 	config, err := rest.InClusterConfig()
-// 	if err != nil {
-// 		return nil, nil, fmt.Errorf("failed to get k8s config. %+v", err)
-// 	}
-//
-// 	clientset, err := kubernetes.NewForConfig(config)
-// 	if err != nil {
-// 		return nil, nil, fmt.Errorf("failed to get k8s client. %+v", err)
-// 	}
-//
-// 	apiExtClientset, err := apiextensionsclient.NewForConfig(config)
-// 	if err != nil {
-// 		return nil, nil, fmt.Errorf("failed to create k8s API extension clientset. %+v", err)
-// 	}
-//
-// 	sampleClientset, err := sampleclient.NewForConfig(config)
-// 	if err != nil {
-// 		return nil, nil, fmt.Errorf("failed to create sample clientset. %+v", err)
-// 	}
-//
-// 	context := &opkit.Context{
-// 		Clientset:             clientset,
-// 		APIExtensionClientset: apiExtClientset,
-// 		Interval:              500 * time.Millisecond,
-// 		Timeout:               60 * time.Second,
-// 	}
-// 	return context, sampleClientset, nil
-//
-// }

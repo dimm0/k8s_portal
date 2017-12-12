@@ -10,84 +10,22 @@ import (
 
 	client "github.com/dimm0/k8s_portal/pkg/apis/optiputer.net/v1alpha1"
 	"k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
 	rbacv1 "k8s.io/api/rbac/v1"
-	apiextcs "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 )
 
 func GetCrd() {
-	k8sconfig, err := rest.InClusterConfig()
-	if err != nil {
-		log.Fatal("Failed to do inclusterconfig: " + err.Error())
-		return
-	}
 
-	clientset, err = kubernetes.NewForConfig(k8sconfig)
-	if err != nil {
-		log.Fatal("Failed to do inclusterconfig new client: " + err.Error())
-	}
-
-	// create clientset and create our CRD, this only need to run once
-	clientset, err := apiextcs.NewForConfig(k8sconfig)
-	if err != nil {
-		panic(err.Error())
-	}
-	// note: if the CRD exist our CreateCRD function is set to exit without an error
-	err = client.CreateCRD(clientset)
-	if err != nil {
-		panic(err)
+	if err := client.CreateCRD(crdclientset); err != nil {
+		log.Printf("Error creating CRD: %s", err.Error())
 	}
 
 	// Wait for the CRD to be created before we use it (only needed if its a new one)
 	time.Sleep(3 * time.Second)
-
-	// Create a new clientset which include our CRD schema
-	crdcs, scheme, err := client.NewClient(k8sconfig)
-	if err != nil {
-		panic(err)
-	}
-
-	// Create a CRD client interface
-	crdclient := client.CrdClient(crdcs, scheme, "default")
-
-	// Create a new Example object and write to k8s
-	user := &client.PRPUser{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:   "example123",
-			Labels: map[string]string{"mylabel": "test"},
-		},
-		Spec: client.PRPUserSpec{
-			Foo: "example-text",
-			Bar: true,
-		},
-		Status: client.PRPUserStatus{
-			State:   "created",
-			Message: "Created, not processed yet",
-		},
-	}
-
-	result, err := crdclient.Create(user)
-	if err == nil {
-		fmt.Printf("CREATED: %#v\n", result)
-	} else if apierrors.IsAlreadyExists(err) {
-		fmt.Printf("ALREADY EXISTS: %#v\n", result)
-	} else {
-		fmt.Printf("ERROR CREATING: %s\n", err.Error())
-	}
-
-	// List all Example objects
-	items, err := crdclient.List(metav1.ListOptions{})
-	if err != nil {
-		panic(err)
-	}
-	fmt.Printf("List:\n%s\n", items)
 
 	_, controller := cache.NewInformer(
 		crdclient.NewListWatch(),
@@ -136,7 +74,7 @@ func NamespacesHandler(w http.ResponseWriter, r *http.Request) {
 		if ns, err := clientset.Core().Namespaces().List(
 			metav1.ListOptions{
 				FieldSelector: fields.OneTermEqualSelector("metadata.name", createNsName).String()}); len(ns.Items) == 0 && err == nil {
-			if user, err := getUser(session.Values["userid"].(string)); err == nil {
+			if user, err := crdclient.Get(session.Values["userid"].(string)); err != nil {
 				if _, err := clientset.Core().Namespaces().Create(&v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: createNsName}}); err != nil {
 					session.AddFlash(fmt.Sprintf("Error creating the namespace: %s", err.Error()))
 					session.Save(r, w)
@@ -167,7 +105,7 @@ func NamespacesHandler(w http.ResponseWriter, r *http.Request) {
 			session.Save(r, w)
 		} else {
 			if _, err := clientset.Core().Namespaces().List(metav1.SingleObject(metav1.ObjectMeta{Name: delNsName})); err == nil {
-				if user, err := getUser(session.Values["userid"].(string)); err == nil {
+				if user, err := crdclient.Get(session.Values["userid"].(string)); err != nil {
 					if !user.IsAdmin(delNsName) {
 						session.AddFlash(fmt.Sprintf("You don't have permissions to delete namespace %s", delNsName))
 						session.Save(r, w)
@@ -273,7 +211,7 @@ func getUserClusterBindings(userId string) []rbacv1.ClusterRoleBinding {
 }
 
 // Creates a new rolebinding
-func createNsRoleBinding(nsName string, roleName string, user PrpUser) (*rbacv1.RoleBinding, error) {
+func createNsRoleBinding(nsName string, roleName string, user *client.PRPUser) (*rbacv1.RoleBinding, error) {
 	return clientset.Rbac().RoleBindings(nsName).Create(&rbacv1.RoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "cilogon",
@@ -286,7 +224,7 @@ func createNsRoleBinding(nsName string, roleName string, user PrpUser) (*rbacv1.
 		Subjects: []rbacv1.Subject{rbacv1.Subject{
 			Kind:     "User",
 			APIGroup: "rbac.authorization.k8s.io",
-			Name:     user.ISS + "#" + user.UserID}},
+			Name:     user.Spec.ISS + "#" + user.Name}},
 	})
 }
 

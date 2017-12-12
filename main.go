@@ -9,6 +9,9 @@ import (
 	"path"
 	"time"
 
+	client "github.com/dimm0/k8s_portal/pkg/apis/optiputer.net/v1alpha1"
+
+	apiextcs "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
@@ -27,6 +30,9 @@ var pubconfig oauth2.Config
 var provider *oidc.Provider
 var clientset *kubernetes.Clientset
 var filestore *sessions.FilesystemStore
+
+var crdclientset *apiextcs.Clientset
+var crdclient *client.CrdClient
 
 type UserPatchJson struct {
 	Op    string `json:"op"`
@@ -97,32 +103,22 @@ func main() {
 
 	clientset, err = kubernetes.NewForConfig(k8sconfig)
 	if err != nil {
-		log.Fatal("Failed to do inclusterconfig new client: " + err.Error())
+		log.Printf("Error creating client: %s", err.Error())
 	}
 
-	// clusterinfo, err := clientset.CoreV1().ConfigMaps(metav1.NamespacePublic).Get("cluster-info", metav1.GetOptions{})
-	// if err != nil {
-	// 	log.Fatal("Failed to get clusterinfo: " + err.Error())
-	// }
-	// fmt.Printf("Clusterinfo: %v", clientset)
+	crdclientset, err = apiextcs.NewForConfig(k8sconfig)
+	if err != nil {
+		panic(err.Error())
+	}
 
-	// note: if the CRD exist our CreateCRD function is set to exit without an error
-	// err = crd.CreateCRD(clientset)
-	// if err != nil {
-	// 	panic(err)
-	// }
-	//
-	// // Wait for the CRD to be created before we use it (only needed if its a new one)
-	// time.Sleep(3 * time.Second)
-	//
-	// // Create a new clientset which include our CRD schema
-	// crdcs, scheme, err := crd.NewClient(config)
-	// if err != nil {
-	// 	panic(err)
-	// }
-	//
-	// // Create a CRD client interface
-	// crdclient := client.CrdClient(crdcs, scheme, "default")
+	// Create a new clientset which include our CRD schema
+	crdcs, scheme, err := client.NewClient(k8sconfig)
+	if err != nil {
+		log.Printf("Error creating CRD client: %s", err.Error())
+	}
+
+	// Create a CRD client interface
+	crdclient = client.MakeCrdClient(crdcs, scheme, "default")
 
 	http.Handle("/media/", http.StripPrefix("/media/", http.FileServer(http.Dir("/media"))))
 
