@@ -11,7 +11,12 @@ import (
 
 	client "github.com/dimm0/k8s_portal/pkg/apis/optiputer.net/v1alpha1"
 
+	"k8s.io/api/core/v1"
+	"k8s.io/api/extensions/v1beta1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	apiextcs "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
@@ -120,6 +125,8 @@ func main() {
 	// Create a CRD client interface
 	crdclient = client.MakeCrdClient(crdcs, scheme, "default")
 
+	SetupSecurity()
+
 	http.Handle("/media/", http.StripPrefix("/media/", http.FileServer(http.Dir("/media"))))
 
 	http.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
@@ -175,4 +182,70 @@ func main() {
 	}()
 
 	log.Fatal(http.ListenAndServe(":80", nil))
+}
+
+func SetupSecurity() error {
+	if _, err := clientset.Extensions().PodSecurityPolicies().Get("prpuserpolicy", metav1.GetOptions{}); err != nil {
+		f := false
+		if _, err := clientset.Extensions().PodSecurityPolicies().Create(&v1beta1.PodSecurityPolicy{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "prpuserpolicy",
+			},
+			//https://kubernetes.io/docs/concepts/policy/pod-security-policy
+			Spec: v1beta1.PodSecurityPolicySpec{
+				Privileged:               false,
+				AllowPrivilegeEscalation: &f,
+				RequiredDropCapabilities: []v1.Capability{"ALL"},
+				Volumes: []v1beta1.FSType{
+					v1beta1.ConfigMap,
+					v1beta1.EmptyDir,
+					// v1beta1.Projected,
+					v1beta1.Secret,
+					v1beta1.DownwardAPI,
+					v1beta1.PersistentVolumeClaim,
+				},
+				HostNetwork: false,
+				HostIPC:     false,
+				HostPID:     false,
+				RunAsUser: v1beta1.RunAsUserStrategyOptions{
+					Rule: v1beta1.RunAsUserStrategyMustRunAsNonRoot,
+				},
+				SELinux: v1beta1.SELinuxStrategyOptions{
+					Rule: v1beta1.SELinuxStrategyRunAsAny,
+				},
+				SupplementalGroups: v1beta1.SupplementalGroupsStrategyOptions{
+					Rule:   v1beta1.SupplementalGroupsStrategyMustRunAs,
+					Ranges: []v1beta1.IDRange{v1beta1.IDRange{Min: 1, Max: 65535}},
+				},
+				FSGroup: v1beta1.FSGroupStrategyOptions{
+					Rule:   v1beta1.FSGroupStrategyMustRunAs,
+					Ranges: []v1beta1.IDRange{v1beta1.IDRange{Min: 1, Max: 65535}},
+				},
+				ReadOnlyRootFilesystem: false,
+			},
+		}); err != nil {
+			log.Printf("Error creating PSP %s", err.Error())
+			return err
+		}
+	}
+
+	if _, err := clientset.Rbac().ClusterRoles().Get("prpuserpsp", metav1.GetOptions{}); err != nil {
+		if _, err := clientset.Rbac().ClusterRoles().Create(&rbacv1.ClusterRole{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "prpuserpsp",
+			},
+			Rules: []rbacv1.PolicyRule{
+				rbacv1.PolicyRule{
+					APIGroups:     []string{"extensions"},
+					Verbs:         []string{"use"},
+					Resources:     []string{"podsecuritypolicy"},
+					ResourceNames: []string{"prpuserpolicy"},
+				},
+			},
+		}); err != nil {
+			log.Printf("Error creating PSP role %s", err.Error())
+			return err
+		}
+	}
+	return nil
 }

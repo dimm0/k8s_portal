@@ -21,7 +21,6 @@ import (
 	"github.com/spf13/viper"
 	"golang.org/x/oauth2"
 	"k8s.io/api/core/v1"
-	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/clientcmd"
@@ -57,17 +56,6 @@ type PodsTemplateVars struct {
 type NodesTemplateVars struct {
 	IndexTemplateVars
 	Nodes []v1.Node
-}
-
-type NamespacesTemplateVars struct {
-	IndexTemplateVars
-	NamespaceBindings []NamespaceUserBinding
-}
-
-type NamespaceUserBinding struct {
-	Namespace           v1.Namespace
-	RoleBindings        []rbacv1.RoleBinding
-	ClusterRoleBindings []rbacv1.ClusterRoleBinding
 }
 
 func buildIndexTemplateVars(session *sessions.Session, w http.ResponseWriter, r *http.Request) IndexTemplateVars {
@@ -371,10 +359,6 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 				Email:  userInfo.Email,
 				Name:   Claims.Name,
 				IDP:    Claims.IDP,
-			},
-			Status: client.PRPUserStatus{
-				State:   "created",
-				Message: "Created, not processed yet",
 			},
 		}
 

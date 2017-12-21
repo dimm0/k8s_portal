@@ -18,8 +18,7 @@ import (
 type PRPUser struct {
 	meta_v1.TypeMeta   `json:",inline"`
 	meta_v1.ObjectMeta `json:"metadata"`
-	Spec               PRPUserSpec   `json:"spec"`
-	Status             PRPUserStatus `json:"status,omitempty"`
+	Spec               PRPUserSpec `json:"spec"`
 }
 
 type PRPUserSpec struct {
@@ -28,11 +27,6 @@ type PRPUserSpec struct {
 	Email  string `json:""`
 	Name   string `json:""`
 	IDP    string `json:""`
-}
-
-type PRPUserStatus struct {
-	State   string `json:"state,omitempty"`
-	Message string `json:"message,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
