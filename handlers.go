@@ -178,6 +178,12 @@ func NamespacesHandler(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/", http.StatusFound)
 	}
 
+	var reqNsName = r.URL.Query().Get("req")
+	if reqNsName != "" {
+		session.AddFlash(fmt.Sprintf("Requesting the membership is not implemented yet. Please send email to the owner directly."))
+		session.Save(r, w)
+	}
+
 	userclientset, err := user.GetUserClientset()
 	if err != nil {
 		session.AddFlash(fmt.Sprintf("Unexpected error: %s", err.Error()))
