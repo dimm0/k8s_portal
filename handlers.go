@@ -6,13 +6,14 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
 
+	authv1 "k8s.io/api/authorization/v1"
+
 	oidc "github.com/coreos/go-oidc"
-	client "github.com/dimm0/k8s_portal/pkg/apis/optiputer.net/v1alpha1"
+	nautilusapi "github.com/dimm0/k8s_portal/pkg/apis/optiputer.net/v1alpha1"
 	"github.com/gorilla/sessions"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/tools/clientcmd/api"
@@ -36,7 +37,7 @@ var keysLock = sync.RWMutex{}
 var statesLock = sync.RWMutex{}
 
 type IndexTemplateVars struct {
-	User       *client.PRPUser
+	User       *nautilusapi.PRPUser
 	ClusterUrl string
 	Flashes    []string
 }
@@ -46,7 +47,7 @@ type ConfigTemplateVars struct {
 	ConfigId string
 }
 
-type PodsTemplateVars struct {
+type NamespacesTemplateVars struct {
 	IndexTemplateVars
 	Pods       []v1.Pod
 	Namespace  string
@@ -59,7 +60,7 @@ type NodesTemplateVars struct {
 }
 
 func buildIndexTemplateVars(session *sessions.Session, w http.ResponseWriter, r *http.Request) IndexTemplateVars {
-	returnVars := IndexTemplateVars{User: &client.PRPUser{}, ClusterUrl: viper.GetString("cluster_url")}
+	returnVars := IndexTemplateVars{User: &nautilusapi.PRPUser{}, ClusterUrl: viper.GetString("cluster_url")}
 	if session.Values["userid"] == nil {
 		return returnVars
 	}
@@ -81,7 +82,7 @@ func buildIndexTemplateVars(session *sessions.Session, w http.ResponseWriter, r 
 	return returnVars
 }
 
-func GetUser(userID string) (*client.PRPUser, error) {
+func GetUser(userID string) (*nautilusapi.PRPUser, error) {
 	userName := strings.Replace(userID, "://", "-", -1)
 	userName = strings.Replace(userName, "/", "-", -1)
 
@@ -149,8 +150,8 @@ func GetConfigHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-//handles the http requests for get pods
-func PodsHandler(w http.ResponseWriter, r *http.Request) {
+//handles the http requests for get namespace
+func NamespacesHandler(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method != "GET" {
 		return
@@ -192,30 +193,30 @@ func PodsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	nss = nsList.Items
-	var ns = getUserNamespace(user.Spec.Email)
+	var ns = getUserNamespace(*user)
 	if r.URL.Query().Get("namespace") != "" {
 		ns = r.URL.Query().Get("namespace")
 	}
 
-	if podsList, err := userclientset.Core().Pods(ns).List(metav1.ListOptions{}); err != nil {
+	podsList, err := userclientset.Core().Pods(ns).List(metav1.ListOptions{})
+	if err != nil {
+		session.AddFlash(fmt.Sprintf("Unexpected error: %s", err.Error()))
+		session.Save(r, w)
+	}
+
+	stVars := NamespacesTemplateVars{Pods: podsList.Items, Namespaces: nss, Namespace: ns, IndexTemplateVars: buildIndexTemplateVars(session, w, r)}
+
+	t, err := template.New("layout.tmpl").ParseFiles("templates/layout.tmpl", "templates/namespaces.tmpl")
+	if err != nil {
 		session.AddFlash(fmt.Sprintf("Unexpected error: %s", err.Error()))
 		session.Save(r, w)
 		http.Redirect(w, r, "/", http.StatusFound)
 	} else {
-		stVars := PodsTemplateVars{Pods: podsList.Items, Namespaces: nss, Namespace: ns, IndexTemplateVars: buildIndexTemplateVars(session, w, r)}
-
-		t, err := template.New("layout.tmpl").ParseFiles("templates/layout.tmpl", "templates/pods.tmpl")
+		err = t.ExecuteTemplate(w, "layout.tmpl", stVars)
 		if err != nil {
 			session.AddFlash(fmt.Sprintf("Unexpected error: %s", err.Error()))
 			session.Save(r, w)
 			http.Redirect(w, r, "/", http.StatusFound)
-		} else {
-			err = t.ExecuteTemplate(w, "layout.tmpl", stVars)
-			if err != nil {
-				session.AddFlash(fmt.Sprintf("Unexpected error: %s", err.Error()))
-				session.Save(r, w)
-				http.Redirect(w, r, "/", http.StatusFound)
-			}
 		}
 	}
 
@@ -260,14 +261,34 @@ func NodesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func getUserNamespace(email string) string {
-
-	userDomain := strings.Split(email, "@")[1]
-
-	reg, _ := regexp.Compile("[^a-zA-Z0-9-]+")
-	userNamespace := reg.ReplaceAllString(userDomain, "-")
-
-	return strings.ToLower(userNamespace)
+func getUserNamespace(user nautilusapi.PRPUser) string {
+	if userclientset, err := user.GetUserClientset(); err != nil {
+		log.Printf("Error getting the user clientset: %s", err.Error())
+		return "default"
+	} else {
+		if nslist, err := clientset.Core().Namespaces().List(metav1.ListOptions{}); err == nil {
+			for _, ns := range nslist.Items {
+				if rev, err := userclientset.AuthorizationV1().SelfSubjectAccessReviews().Create(&authv1.SelfSubjectAccessReview{
+					Spec: authv1.SelfSubjectAccessReviewSpec{
+						ResourceAttributes: &authv1.ResourceAttributes{
+							Namespace: ns.ObjectMeta.Name,
+							Verb:      "list",
+							Group:     "",
+							Resource:  "pods",
+						},
+					},
+				}); err == nil {
+					if rev.Status.Allowed {
+						return ns.ObjectMeta.Name
+					}
+				}
+			}
+			return "default"
+		} else {
+			log.Printf("Error getting the user namespaces: %s", err.Error())
+			return "default"
+		}
+	}
 }
 
 func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
@@ -349,11 +370,11 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 		userName := strings.Replace(userInfo.Subject, "://", "-", -1)
 		userName = strings.Replace(userName, "/", "-", -1)
 
-		user := &client.PRPUser{
+		user := &nautilusapi.PRPUser{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: strings.ToLower(userName),
 			},
-			Spec: client.PRPUserSpec{
+			Spec: nautilusapi.PRPUserSpec{
 				UserID: userInfo.Subject,
 				ISS:    idToken.Issuer,
 				Email:  userInfo.Email,
@@ -366,7 +387,7 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 		if err == nil {
 			fmt.Printf("CREATED USER: %#v\n", result)
 		} else if apierrors.IsAlreadyExists(err) {
-			fmt.Printf("ALREADY EXISTS USER: %#v\n", result)
+			// fmt.Printf("ALREADY EXISTS USER: %#v\n", result)
 		} else {
 			fmt.Printf("ERROR CREATING USER: %s\n", err.Error())
 		}
@@ -382,7 +403,7 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 		if user, err := GetUser(idToken.Subject); err != nil {
 			log.Printf("Error getting the user: %s", err.Error())
 		} else {
-			ns = getUserNamespace(user.Spec.Email)
+			ns = getUserNamespace(*user)
 		}
 
 		co.Contexts = map[string]*api.Context{

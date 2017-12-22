@@ -12,14 +12,16 @@ import (
 	"k8s.io/api/core/v1"
 
 	rbacv1 "k8s.io/api/rbac/v1"
+	apiextcs "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 )
 
-type NamespacesTemplateVars struct {
+type ProfileTemplateVars struct {
 	IndexTemplateVars
 	NamespaceBindings []NamespaceUserBinding
 	PRPUsers          []client.PRPUser
@@ -32,6 +34,16 @@ type NamespaceUserBinding struct {
 }
 
 func GetCrd() {
+	k8sconfig, err := rest.InClusterConfig()
+	if err != nil {
+		log.Fatal("Failed to do inclusterconfig: " + err.Error())
+		return
+	}
+
+	crdclientset, err := apiextcs.NewForConfig(k8sconfig)
+	if err != nil {
+		panic(err.Error())
+	}
 
 	if err := client.CreateCRD(crdclientset); err != nil {
 		log.Printf("Error creating CRD: %s", err.Error())
@@ -64,8 +76,8 @@ func GetCrd() {
 	select {}
 }
 
-// Process the /namespaces path
-func NamespacesHandler(w http.ResponseWriter, r *http.Request) {
+// Process the /profile path
+func ProfileHandler(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method != "GET" {
 		return
@@ -185,7 +197,7 @@ func NamespacesHandler(w http.ResponseWriter, r *http.Request) {
 
 	usersList, _ := crdclient.List(metav1.ListOptions{})
 
-	nsVars := NamespacesTemplateVars{NamespaceBindings: nsList, PRPUsers: usersList.Items, IndexTemplateVars: buildIndexTemplateVars(session, w, r)}
+	nsVars := ProfileTemplateVars{NamespaceBindings: nsList, PRPUsers: usersList.Items, IndexTemplateVars: buildIndexTemplateVars(session, w, r)}
 
 	t, err := template.New("layout.tmpl").ParseFiles("templates/layout.tmpl", "templates/namespaces.tmpl")
 	if err != nil {
@@ -240,13 +252,23 @@ func getUserClusterBindings(userId string) []rbacv1.ClusterRoleBinding {
 
 // Creates a new rolebinding
 func createNsRoleBinding(nsName string, roleName string, user *client.PRPUser, userclientset *kubernetes.Clientset) error {
+	userName := user.Spec.ISS + "#" + user.Spec.UserID
+
 	if rb, err := userclientset.Rbac().RoleBindings(nsName).Get("nautilus-psp", metav1.GetOptions{}); err == nil {
-		rb.Subjects = append(rb.Subjects, rbacv1.Subject{
-			Kind:     "User",
-			APIGroup: "rbac.authorization.k8s.io",
-			Name:     user.Spec.ISS + "#" + user.Spec.UserID})
-		if _, err := userclientset.Rbac().RoleBindings(nsName).Update(rb); err != nil {
-			return err
+		found := false
+		for _, subj := range rb.Subjects {
+			if subj.Name == userName {
+				found = true
+			}
+		}
+		if !found {
+			rb.Subjects = append(rb.Subjects, rbacv1.Subject{
+				Kind:     "User",
+				APIGroup: "rbac.authorization.k8s.io",
+				Name:     userName})
+			if _, err := userclientset.Rbac().RoleBindings(nsName).Update(rb); err != nil {
+				return err
+			}
 		}
 	} else {
 		if _, err := userclientset.Rbac().RoleBindings(nsName).Create(&rbacv1.RoleBinding{
@@ -261,7 +283,7 @@ func createNsRoleBinding(nsName string, roleName string, user *client.PRPUser, u
 			Subjects: []rbacv1.Subject{rbacv1.Subject{
 				Kind:     "User",
 				APIGroup: "rbac.authorization.k8s.io",
-				Name:     user.Spec.ISS + "#" + user.Spec.UserID}},
+				Name:     userName}},
 		}); err != nil {
 			return err
 		}
@@ -269,12 +291,20 @@ func createNsRoleBinding(nsName string, roleName string, user *client.PRPUser, u
 
 	if roleName == "admin" {
 		if rb, err := userclientset.Rbac().RoleBindings(nsName).Get("nautilus-admin-ext", metav1.GetOptions{}); err == nil {
-			rb.Subjects = append(rb.Subjects, rbacv1.Subject{
-				Kind:     "User",
-				APIGroup: "rbac.authorization.k8s.io",
-				Name:     user.Spec.ISS + "#" + user.Spec.UserID})
-			if _, err := userclientset.Rbac().RoleBindings(nsName).Update(rb); err != nil {
-				return err
+			found := false
+			for _, subj := range rb.Subjects {
+				if subj.Name == userName {
+					found = true
+				}
+			}
+			if !found {
+				rb.Subjects = append(rb.Subjects, rbacv1.Subject{
+					Kind:     "User",
+					APIGroup: "rbac.authorization.k8s.io",
+					Name:     userName})
+				if _, err := userclientset.Rbac().RoleBindings(nsName).Update(rb); err != nil {
+					return err
+				}
 			}
 		} else {
 			if _, err := userclientset.Rbac().RoleBindings(nsName).Create(&rbacv1.RoleBinding{
@@ -289,19 +319,27 @@ func createNsRoleBinding(nsName string, roleName string, user *client.PRPUser, u
 				Subjects: []rbacv1.Subject{rbacv1.Subject{
 					Kind:     "User",
 					APIGroup: "rbac.authorization.k8s.io",
-					Name:     user.Spec.ISS + "#" + user.Spec.UserID}},
+					Name:     userName}},
 			}); err != nil {
 				return err
 			}
 		}
 
 		if rb, err := userclientset.Rbac().ClusterRoleBindings().Get("cluster-nautilus-admin", metav1.GetOptions{}); err == nil {
-			rb.Subjects = append(rb.Subjects, rbacv1.Subject{
-				Kind:     "User",
-				APIGroup: "rbac.authorization.k8s.io",
-				Name:     user.Spec.ISS + "#" + user.Spec.UserID})
-			if _, err := userclientset.Rbac().ClusterRoleBindings().Update(rb); err != nil {
-				return err
+			found := false
+			for _, subj := range rb.Subjects {
+				if subj.Name == userName {
+					found = true
+				}
+			}
+			if !found {
+				rb.Subjects = append(rb.Subjects, rbacv1.Subject{
+					Kind:     "User",
+					APIGroup: "rbac.authorization.k8s.io",
+					Name:     userName})
+				if _, err := userclientset.Rbac().ClusterRoleBindings().Update(rb); err != nil {
+					return err
+				}
 			}
 		} else {
 			if _, err := userclientset.Rbac().ClusterRoleBindings().Create(&rbacv1.ClusterRoleBinding{
@@ -316,7 +354,7 @@ func createNsRoleBinding(nsName string, roleName string, user *client.PRPUser, u
 				Subjects: []rbacv1.Subject{rbacv1.Subject{
 					Kind:     "User",
 					APIGroup: "rbac.authorization.k8s.io",
-					Name:     user.Spec.ISS + "#" + user.Spec.UserID}},
+					Name:     userName}},
 			}); err != nil {
 				return err
 			}
@@ -325,12 +363,20 @@ func createNsRoleBinding(nsName string, roleName string, user *client.PRPUser, u
 	}
 
 	if rb, err := userclientset.Rbac().RoleBindings(nsName).Get("nautilus-"+roleName, metav1.GetOptions{}); err == nil {
-		rb.Subjects = append(rb.Subjects, rbacv1.Subject{
-			Kind:     "User",
-			APIGroup: "rbac.authorization.k8s.io",
-			Name:     user.Spec.ISS + "#" + user.Spec.UserID})
-		_, err := userclientset.Rbac().RoleBindings(nsName).Update(rb)
-		return err
+		found := false
+		for _, subj := range rb.Subjects {
+			if subj.Name == userName {
+				found = true
+			}
+		}
+		if !found {
+			rb.Subjects = append(rb.Subjects, rbacv1.Subject{
+				Kind:     "User",
+				APIGroup: "rbac.authorization.k8s.io",
+				Name:     userName})
+			_, err := userclientset.Rbac().RoleBindings(nsName).Update(rb)
+			return err
+		}
 	} else {
 		_, err := userclientset.Rbac().RoleBindings(nsName).Create(&rbacv1.RoleBinding{
 			ObjectMeta: metav1.ObjectMeta{
@@ -344,10 +390,11 @@ func createNsRoleBinding(nsName string, roleName string, user *client.PRPUser, u
 			Subjects: []rbacv1.Subject{rbacv1.Subject{
 				Kind:     "User",
 				APIGroup: "rbac.authorization.k8s.io",
-				Name:     user.Spec.ISS + "#" + user.Spec.UserID}},
+				Name:     userName}},
 		})
 		return err
 	}
+	return nil
 
 }
 

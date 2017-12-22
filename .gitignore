@@ -18,3 +18,4 @@ pkg/apis/optiputer.net/v1alpha1/zz*
 pkg/client
 vendor
 hack
+k8s_portal

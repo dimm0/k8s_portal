@@ -1,36 +1,34 @@
 {{define "body"}}
+  {{$cluster:= .ClusterUrl}}
+  {{$ns:= .Namespace}}
   <div class="container">
       <div class="jumbotron">
-        <a class="btn btn-outline-primary" href="JavaScript:mkns()">Create new</a>
-        <p class="lead">Your namespaces:</p>
+        <a class="btn btn-outline-primary" href="JavaScript:req('{{$ns}}')">Request membership</a>
+
+        <p class="lead">Pods running in namespace:</p>
+        <select class="form-control" id="ns_sel" onchange="window.location.href='/namespaces?namespace='+this.value">
+          <option value=""><i>User's default</i></option>
+          {{range .Namespaces}}
+            <option value="{{.GetName}}"{{if eq .GetName $ns}} selected{{end}}>{{.GetName}}</option>
+          {{end}}
+        </select>
+
         <table class="table table-striped">
           <thead>
             <tr>
-              <th>Name</th>
+              <th>ID</th>
               <th>Status</th>
-	      <th></th>
+              <th>Node</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
-            {{range $key, $value := .NamespaceBindings}}
+            {{range .Pods}}
             <tr>
-      	      {{if eq $value.Namespace.GetName ""}}
-      	        <td><i>Cluster-wide</i></td>
-                <td>
-                  {{range $value.ClusterRoleBindings}}
-                    <span class="roleref">{{.RoleRef.Name}}</span>
-                  {{end}}
-                </td>
-		<td></td>
-      	      {{else}}
-                <td>{{$value.Namespace.GetName}}</td>
-                <td>
-                  {{range $value.RoleBindings}}
-                    <span class="roleref">{{.RoleRef.Name}}</span>
-                  {{end}}
-                </td>
-		<td><button type="button" class="btn btn-danger"><i class="fa fa-trash" aria-hidden="true" onclick="delns('{{$value.Namespace.GetName}}')"></i></button></td>
-      	      {{end}}
+              <td>{{.GetName}}</td>
+              <td><span class="tt" {{if .Status.Message}}title="{{.Status.Message}}"{{end}}>{{.Status.Phase}}{{if .Status.Reason}} (!){{end}}</span></td>
+              <td>{{.Spec.NodeName}}</td>
+              <td><a class="btn btn-outline-primary" href="//grafana.{{$cluster}}/dashboard/db/pods?var-namespace={{$ns}}&amp;var-pod={{.GetName}}">Monitor</a></td>
             </tr>
             {{end}}
           </tbody>
@@ -40,37 +38,22 @@
 {{end}}
 
 {{define "page_js"}}
+  <script src="https://unpkg.com/tippy.js/dist/tippy.min.js"></script>
 
-<script language="JavaScript">
-function mkns() {
-	vex.dialog.prompt({
-	    message: 'Namespace name',
-	    callback: function (value) {
-        if(value !== false)
-		      document.location.href = "?mkns="+value;
-	    }
-	})
-}
-function delns(ns) {
-	vex.dialog.confirm({
-	    message: 'Delete namespace '+ns+'? (May take some time)',
-	    callback: function (value) {
-	    	if(value)
-			document.location.href = "?delns="+ns;
-	    }
-	})
-}
-</script>
+  <script language="JavaScript">
+  function req(ns) {
+  	vex.dialog.confirm({
+  	    message: 'Request membership in '+ns+'?',
+  	    callback: function (value) {
+  	    	if(value)
+  			     document.location.href = "?req="+ns;
+  	    }
+  	})
+  }
+  </script>
+
 {{end}}
 
 {{define "page_css"}}
-
-<style>
-  span.roleref {
-    background: white;
-    padding: 3px;
-    border-radius: 3px;
-    font-size: 0.6em;
-  }
-</style>
+  <link rel="stylesheet" href="https://unpkg.com/tippy.js/dist/tippy.css">
 {{end}}

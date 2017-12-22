@@ -9,12 +9,11 @@ import (
 	"path"
 	"time"
 
-	client "github.com/dimm0/k8s_portal/pkg/apis/optiputer.net/v1alpha1"
+	nautilusapi "github.com/dimm0/k8s_portal/pkg/apis/optiputer.net/v1alpha1"
 
 	"k8s.io/api/core/v1"
 	"k8s.io/api/extensions/v1beta1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	apiextcs "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"k8s.io/client-go/kubernetes"
@@ -36,8 +35,7 @@ var provider *oidc.Provider
 var clientset *kubernetes.Clientset
 var filestore *sessions.FilesystemStore
 
-var crdclientset *apiextcs.Clientset
-var crdclient *client.CrdClient
+var crdclient *nautilusapi.CrdClient
 
 type UserPatchJson struct {
 	Op    string `json:"op"`
@@ -111,19 +109,14 @@ func main() {
 		log.Printf("Error creating client: %s", err.Error())
 	}
 
-	crdclientset, err = apiextcs.NewForConfig(k8sconfig)
-	if err != nil {
-		panic(err.Error())
-	}
-
 	// Create a new clientset which include our CRD schema
-	crdcs, scheme, err := client.NewClient(k8sconfig)
+	crdcs, scheme, err := nautilusapi.NewClient(k8sconfig)
 	if err != nil {
 		log.Printf("Error creating CRD client: %s", err.Error())
 	}
 
 	// Create a CRD client interface
-	crdclient = client.MakeCrdClient(crdcs, scheme, "default")
+	crdclient = nautilusapi.MakeCrdClient(crdcs, scheme, "default")
 
 	SetupSecurity()
 
@@ -134,9 +127,9 @@ func main() {
 	})
 
 	http.HandleFunc("/", RootHandler)
-	http.HandleFunc("/pods", PodsHandler)
-	http.HandleFunc("/nodes", NodesHandler)
 	http.HandleFunc("/namespaces", NamespacesHandler)
+	http.HandleFunc("/nodes", NodesHandler)
+	http.HandleFunc("/profile", ProfileHandler)
 
 	http.HandleFunc("/authConfig", func(w http.ResponseWriter, r *http.Request) {
 		statesLock.Lock()
