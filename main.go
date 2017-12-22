@@ -185,11 +185,11 @@ func main() {
 }
 
 func SetupSecurity() error {
-	if _, err := clientset.Extensions().PodSecurityPolicies().Get("prpuserpolicy", metav1.GetOptions{}); err != nil {
+	if _, err := clientset.Extensions().PodSecurityPolicies().Get("nautilususerpolicy", metav1.GetOptions{}); err != nil {
 		f := false
 		if _, err := clientset.Extensions().PodSecurityPolicies().Create(&v1beta1.PodSecurityPolicy{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: "prpuserpolicy",
+				Name: "nautilususerpolicy",
 			},
 			//https://kubernetes.io/docs/concepts/policy/pod-security-policy
 			Spec: v1beta1.PodSecurityPolicySpec{
@@ -229,17 +229,17 @@ func SetupSecurity() error {
 		}
 	}
 
-	if _, err := clientset.Rbac().ClusterRoles().Get("prpuserpsp", metav1.GetOptions{}); err != nil {
+	if _, err := clientset.Rbac().ClusterRoles().Get("nautilususerpsp", metav1.GetOptions{}); err != nil {
 		if _, err := clientset.Rbac().ClusterRoles().Create(&rbacv1.ClusterRole{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: "prpuserpsp",
+				Name: "nautilususerpsp",
 			},
 			Rules: []rbacv1.PolicyRule{
 				rbacv1.PolicyRule{
 					APIGroups:     []string{"extensions"},
 					Verbs:         []string{"use"},
 					Resources:     []string{"podsecuritypolicy"},
-					ResourceNames: []string{"prpuserpolicy"},
+					ResourceNames: []string{"nautilususerpolicy"},
 				},
 			},
 		}); err != nil {
@@ -247,5 +247,42 @@ func SetupSecurity() error {
 			return err
 		}
 	}
+
+	if _, err := clientset.Rbac().ClusterRoles().Get("clusternautilusadmin", metav1.GetOptions{}); err != nil {
+		if _, err := clientset.Rbac().ClusterRoles().Create(&rbacv1.ClusterRole{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "clusternautilusadmin",
+			},
+			Rules: []rbacv1.PolicyRule{
+				rbacv1.PolicyRule{
+					APIGroups: []string{""},
+					Verbs:     []string{"get", "list"},
+					Resources: []string{"nodes"},
+				},
+			},
+		}); err != nil {
+			log.Printf("Error creating cluster Nautilus admin role %s", err.Error())
+			return err
+		}
+	}
+
+	if _, err := clientset.Rbac().ClusterRoles().Get("nautilusadmin", metav1.GetOptions{}); err != nil {
+		if _, err := clientset.Rbac().ClusterRoles().Create(&rbacv1.ClusterRole{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "nautilusadmin",
+			},
+			Rules: []rbacv1.PolicyRule{
+				rbacv1.PolicyRule{
+					APIGroups: []string{""},
+					Verbs:     []string{"delete"},
+					Resources: []string{"namespaces"},
+				},
+			},
+		}); err != nil {
+			log.Printf("Error creating Nautilus admin role %s", err.Error())
+			return err
+		}
+	}
+
 	return nil
 }
