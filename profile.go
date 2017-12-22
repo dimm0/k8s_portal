@@ -173,7 +173,7 @@ func ProfileHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if delNsName != "" || createNsName != "" || addUserName != "" {
-		http.Redirect(w, r, "/namespaces", 303)
+		http.Redirect(w, r, "/profile", 303)
 		return
 	}
 
