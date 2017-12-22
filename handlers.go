@@ -386,6 +386,7 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 				Email:  userInfo.Email,
 				Name:   Claims.Name,
 				IDP:    Claims.IDP,
+				Role:   "guest",
 			},
 		}
 

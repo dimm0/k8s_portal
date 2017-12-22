@@ -24,6 +24,7 @@ type PRPUserSpec struct {
 	Email  string `json:""`
 	Name   string `json:""`
 	IDP    string `json:""`
+	Role   string `json:""` // guest, user, admin
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

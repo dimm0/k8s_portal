@@ -278,7 +278,7 @@ func createNsRoleBinding(nsName string, roleName string, user *client.PRPUser, u
 			RoleRef: rbacv1.RoleRef{
 				APIGroup: "rbac.authorization.k8s.io",
 				Kind:     "ClusterRole",
-				Name:     "nautilususerpsp",
+				Name:     "nautilus-user-psp",
 			},
 			Subjects: []rbacv1.Subject{rbacv1.Subject{
 				Kind:     "User",
@@ -314,7 +314,7 @@ func createNsRoleBinding(nsName string, roleName string, user *client.PRPUser, u
 				RoleRef: rbacv1.RoleRef{
 					APIGroup: "rbac.authorization.k8s.io",
 					Kind:     "ClusterRole",
-					Name:     "nautilusadmin",
+					Name:     "nautilus-admin",
 				},
 				Subjects: []rbacv1.Subject{rbacv1.Subject{
 					Kind:     "User",
@@ -325,7 +325,7 @@ func createNsRoleBinding(nsName string, roleName string, user *client.PRPUser, u
 			}
 		}
 
-		if rb, err := userclientset.Rbac().ClusterRoleBindings().Get("cluster-nautilus-admin", metav1.GetOptions{}); err == nil {
+		if rb, err := userclientset.Rbac().ClusterRoleBindings().Get("nautilus-cluster-admin", metav1.GetOptions{}); err == nil {
 			found := false
 			for _, subj := range rb.Subjects {
 				if subj.Name == userName {
@@ -344,12 +344,12 @@ func createNsRoleBinding(nsName string, roleName string, user *client.PRPUser, u
 		} else {
 			if _, err := userclientset.Rbac().ClusterRoleBindings().Create(&rbacv1.ClusterRoleBinding{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "cluster-nautilus-admin",
+					Name: "nautilus-cluster-admin",
 				},
 				RoleRef: rbacv1.RoleRef{
 					APIGroup: "rbac.authorization.k8s.io",
 					Kind:     "ClusterRole",
-					Name:     "clusternautilusadmin",
+					Name:     "nautilus-cluster-user",
 				},
 				Subjects: []rbacv1.Subject{rbacv1.Subject{
 					Kind:     "User",

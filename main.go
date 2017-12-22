@@ -37,16 +37,6 @@ var filestore *sessions.FilesystemStore
 
 var crdclient *nautilusapi.CrdClient
 
-type UserPatchJson struct {
-	Op    string `json:"op"`
-	Path  string `json:"path"`
-	Value struct {
-		Kind     string `json:"kind"`
-		Name     string `json:"name"`
-		ApiGroup string `json:"apiGroup"`
-	} `json:"value"`
-}
-
 func randStringBytes(n int) string {
 	b := make([]byte, n)
 	for i := range b {
@@ -165,7 +155,7 @@ func main() {
 
 	http.HandleFunc("/getConfig", GetConfigHandler)
 	http.HandleFunc("/callback", AuthenticateHandler)
-	http.HandleFunc("/admin", AdminHandler)
+	http.HandleFunc("/users", UsersHandler)
 	http.HandleFunc("/logout", LogoutHandler)
 
 	log.Printf("listening on http://%s/", "127.0.0.1")
@@ -222,10 +212,10 @@ func SetupSecurity() error {
 		}
 	}
 
-	if _, err := clientset.Rbac().ClusterRoles().Get("nautilususerpsp", metav1.GetOptions{}); err != nil {
+	if _, err := clientset.Rbac().ClusterRoles().Get("nautilus-user-psp", metav1.GetOptions{}); err != nil {
 		if _, err := clientset.Rbac().ClusterRoles().Create(&rbacv1.ClusterRole{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: "nautilususerpsp",
+				Name: "nautilus-user-psp",
 			},
 			Rules: []rbacv1.PolicyRule{
 				rbacv1.PolicyRule{
@@ -241,10 +231,10 @@ func SetupSecurity() error {
 		}
 	}
 
-	if _, err := clientset.Rbac().ClusterRoles().Get("clusternautilusadmin", metav1.GetOptions{}); err != nil {
+	if _, err := clientset.Rbac().ClusterRoles().Get("nautilus-cluster-user", metav1.GetOptions{}); err != nil {
 		if _, err := clientset.Rbac().ClusterRoles().Create(&rbacv1.ClusterRole{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: "clusternautilusadmin",
+				Name: "nautilus-cluster-user",
 			},
 			Rules: []rbacv1.PolicyRule{
 				rbacv1.PolicyRule{
@@ -259,10 +249,10 @@ func SetupSecurity() error {
 		}
 	}
 
-	if _, err := clientset.Rbac().ClusterRoles().Get("nautilusadmin", metav1.GetOptions{}); err != nil {
+	if _, err := clientset.Rbac().ClusterRoles().Get("nautilus-admin", metav1.GetOptions{}); err != nil {
 		if _, err := clientset.Rbac().ClusterRoles().Create(&rbacv1.ClusterRole{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: "nautilusadmin",
+				Name: "nautilus-admin",
 			},
 			Rules: []rbacv1.PolicyRule{
 				rbacv1.PolicyRule{

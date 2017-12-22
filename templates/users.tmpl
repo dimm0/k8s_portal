@@ -1,0 +1,55 @@
+{{define "body"}}
+  <div class="container">
+    <table class="table table-striped">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>IDP</th>
+            <th>Email</th>
+            <th>Role</th>
+            <th>Validate</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .Users}}
+          <tr>
+            <td>{{.Spec.UserID}}</td>
+            <td>{{.Spec.Name}}</td>
+            <td>{{.Spec.IDP}}</td>
+            <td>{{.Spec.Email}}</td>
+            <td id="{{.Spec.UserID}}_role">{{.Spec.Role}}</td>
+            <td id="{{.Spec.UserID}}_modif">
+              {{if .User.Spec.Role "guest"}}
+                <a class="btn btn-outline-primary" href="JavaScript:verifyUser('{{.Spec.UserID}}', true)">Validate</a>
+              {{end}}
+              {{if .User.Spec.Role "user"}}
+                <a class="btn btn-outline-primary" href="JavaScript:verifyUser('{{.Spec.UserID}}'), false">Unvalidate</a>
+              {{end}}
+            </td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+  </div>
+{{end}}
+
+{{define "page_js"}}
+  <script language="JavaScript">
+    function verifyUser(user, isValid) {
+      $.ajax({
+        url: "/users",
+        type: isValid?'PUT':'DELETE',
+        success: function(result){
+          $("#"+user+"_role").html(result);
+          $("#"+user+"_modif").html('<a class="btn btn-outline-primary" href="JavaScript:verifyUser(\''+user+'\'), '+!isValid+'">'+isValid?"Unvalidate":"Validate"+'</a>');
+        },
+        error: function(result){
+          vex.dialog.alert({
+        	    message: "Error changing user state: "+result
+        	})
+        },
+      });
+    }
+  </script>
+{{end}}
