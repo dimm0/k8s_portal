@@ -1,10 +1,7 @@
 package v1alpha1
 
 import (
-	"log"
-	"strings"
-
-	rbacv1 "k8s.io/api/rbac/v1"
+	authv1 "k8s.io/api/authorization/v1"
 
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -38,69 +35,6 @@ type PRPUserList struct {
 	Items            []PRPUser `json:"items"`
 }
 
-func (user PRPUser) IsAdmin(namespace string) bool {
-	if user.IsClusterAdmin() {
-		return true
-	}
-	if namespace != "" {
-		k8sconfig, err := rest.InClusterConfig()
-		if err != nil {
-			log.Fatal("Failed to do inclusterconfig: " + err.Error())
-			return false
-		}
-
-		clientset, err := kubernetes.NewForConfig(k8sconfig)
-		if err != nil {
-			log.Printf("Error creating client: %s", err.Error())
-			return false
-		}
-
-		if bindings, err := clientset.Rbac().RoleBindings(namespace).List(meta_v1.ListOptions{}); err != nil {
-			return false
-		} else {
-			for _, bind := range bindings.Items {
-				if bind.RoleRef.Name == "admin" || bind.RoleRef.Name == "cluster-admin" {
-					for _, subj := range bind.Subjects {
-						if subj.Kind == rbacv1.UserKind && user.Spec.ISS+"#"+user.Name == subj.Name {
-							return true
-						}
-					}
-				}
-			}
-		}
-	}
-	return false
-}
-
-func (user PRPUser) IsClusterAdmin() bool {
-	k8sconfig, err := rest.InClusterConfig()
-	if err != nil {
-		log.Fatal("Failed to do inclusterconfig: " + err.Error())
-		return false
-	}
-
-	clientset, err := kubernetes.NewForConfig(k8sconfig)
-	if err != nil {
-		log.Printf("Error creating client: %s", err.Error())
-		return false
-	}
-
-	if bindings, err := clientset.Rbac().ClusterRoleBindings().List(meta_v1.ListOptions{}); err != nil {
-		return false
-	} else {
-		for _, bind := range bindings.Items {
-			if !strings.HasPrefix(bind.Name, "system") && (bind.RoleRef.Name == "admin" || bind.RoleRef.Name == "cluster-admin") {
-				for _, subj := range bind.Subjects {
-					if subj.Kind == rbacv1.UserKind && user.Spec.ISS+"#"+user.Spec.UserID == subj.Name {
-						return true
-					}
-				}
-			}
-		}
-	}
-	return false
-}
-
 func (user PRPUser) GetUserClientset() (*kubernetes.Clientset, error) {
 	userk8sconfig, err := rest.InClusterConfig()
 	if err != nil {
@@ -113,4 +47,27 @@ func (user PRPUser) GetUserClientset() (*kubernetes.Clientset, error) {
 
 	return kubernetes.NewForConfig(userk8sconfig)
 
+}
+
+// Check if user can create accounts in the NS - so is he an admin
+func (user PRPUser) IsAdmin(ns string) bool {
+	userclientset, err := user.GetUserClientset()
+	if err != nil {
+		return false
+	}
+
+	if rev, err := userclientset.AuthorizationV1().SelfSubjectAccessReviews().Create(&authv1.SelfSubjectAccessReview{
+		Spec: authv1.SelfSubjectAccessReviewSpec{
+			ResourceAttributes: &authv1.ResourceAttributes{
+				Namespace: ns,
+				Verb:      "create",
+				Group:     "rbac.authorization.k8s.io",
+				Resource:  "rolebindings",
+			},
+		},
+	}); err == nil {
+		return rev.Status.Allowed
+	}
+
+	return false
 }

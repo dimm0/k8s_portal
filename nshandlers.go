@@ -46,13 +46,13 @@ func GetCrd() {
 		time.Minute*10,
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
-				fmt.Printf("add: %s \n", obj)
+				// fmt.Printf("add: %s \n", obj)
 			},
 			DeleteFunc: func(obj interface{}) {
-				fmt.Printf("delete: %s \n", obj)
+				// fmt.Printf("delete: %s \n", obj)
 			},
 			UpdateFunc: func(oldObj, newObj interface{}) {
-				fmt.Printf("Update old: %s \n      New: %s\n", oldObj, newObj)
+				// fmt.Printf("Update old: %s \n      New: %s\n", oldObj, newObj)
 			},
 		},
 	)
@@ -110,7 +110,7 @@ func NamespacesHandler(w http.ResponseWriter, r *http.Request) {
 					log.Printf("Error creating limits: %s", err.Error())
 				}
 
-				_, err := createNsRoleBinding(createNsName, "admin", user)
+				_, err := createNsRoleBinding(createNsName, "admin", user, clientset)
 				if err != nil {
 					log.Printf("Error creating userbinding %s", err.Error())
 				}
@@ -128,30 +128,48 @@ func NamespacesHandler(w http.ResponseWriter, r *http.Request) {
 			session.AddFlash(fmt.Sprintf("Can't delete standard namespace %s", delNsName))
 			session.Save(r, w)
 		} else {
-			if err := userclientset.Core().Namespaces().Delete(delNsName, &metav1.DeleteOptions{}); err != nil {
-				session.AddFlash(fmt.Sprintf("Error deleting the namespace: %s", err.Error()))
+			if !user.IsAdmin(delNsName) {
+				session.AddFlash(fmt.Sprintf("Not the admin of %s namespace", delNsName))
 				session.Save(r, w)
 			} else {
-				session.AddFlash(fmt.Sprintf("The namespace %s is being deleted. Please update the page or use kubectl to see the result.", delNsName))
-				session.Save(r, w)
+				if err := clientset.Core().Namespaces().Delete(delNsName, &metav1.DeleteOptions{}); err != nil {
+					session.AddFlash(fmt.Sprintf("Error deleting the namespace: %s", err.Error()))
+					session.Save(r, w)
+				} else {
+					session.AddFlash(fmt.Sprintf("The namespace %s is being deleted. Please update the page or use kubectl to see the result.", delNsName))
+					session.Save(r, w)
+				}
 			}
 		}
 	}
 
-	if delNsName != "" || createNsName != "" {
+	// User requested to add another user to namespace
+	addUserName := r.URL.Query().Get("addusername")
+	addUserNs := r.URL.Query().Get("adduserns")
+	addUserRole := r.URL.Query().Get("adduserrole")
+
+	if addUserName != "" && addUserNs != "" && addUserRole != "" {
+		requser, err := GetUser(addUserName)
+		if err != nil {
+			session.AddFlash(fmt.Sprintf("Unexpected error: %s", err.Error()))
+			session.Save(r, w)
+			http.Redirect(w, r, "/", http.StatusFound)
+			return
+		}
+
+		if _, err := createNsRoleBinding(addUserNs, addUserRole, requser, userclientset); err != nil {
+			session.AddFlash(fmt.Sprintf("Error adding user to namespace namespace: %s", err.Error()))
+			session.Save(r, w)
+		} else {
+			session.AddFlash(fmt.Sprintf("Added user %s with role %s to namespace %s.", requser, addUserRole, addUserNs))
+			session.Save(r, w)
+		}
+	}
+
+	if delNsName != "" || createNsName != "" || addUserName != "" {
 		http.Redirect(w, r, "/namespaces", 303)
 		return
 	}
-
-	// User requested to add another user to namespace
-	// var addUserName = r.URL.Query().Get("addusername"),
-	//   addUserNs = r.URL.Query().Get("adduserns")
-	// if addUserName != "" && addUserNs != "" {
-	//
-	// } else {
-	//   session.AddFlash(fmt.Sprintf("Not enough arguments"))
-	//   session.Save(r, w)
-	// }
 
 	namespacesList, _ := clientset.Core().Namespaces().List(metav1.ListOptions{})
 
@@ -227,27 +245,45 @@ func getUserClusterBindings(userId string) []rbacv1.ClusterRoleBinding {
 }
 
 // Creates a new rolebinding
-func createNsRoleBinding(nsName string, roleName string, user *client.PRPUser) (*rbacv1.RoleBinding, error) {
-	if rb, err := clientset.Rbac().RoleBindings(nsName).Create(&rbacv1.RoleBinding{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "cilogon-psp",
-		},
-		RoleRef: rbacv1.RoleRef{
-			APIGroup: "rbac.authorization.k8s.io",
-			Kind:     "ClusterRole",
-			Name:     "prpuserpsp",
-		},
-		Subjects: []rbacv1.Subject{rbacv1.Subject{
+func createNsRoleBinding(nsName string, roleName string, user *client.PRPUser, clientset *kubernetes.Clientset) (*rbacv1.RoleBinding, error) {
+	if rb, err := clientset.Rbac().RoleBindings(nsName).Get("nautilus-psp", metav1.GetOptions{}); err == nil {
+		rb.Subjects = append(rb.Subjects, rbacv1.Subject{
 			Kind:     "User",
 			APIGroup: "rbac.authorization.k8s.io",
-			Name:     user.Spec.ISS + "#" + user.Spec.UserID}},
-	}); err != nil {
-		return rb, err
+			Name:     user.Spec.ISS + "#" + user.Spec.UserID})
+		if rb, err := clientset.Rbac().RoleBindings(nsName).Update(rb); err != nil {
+			return rb, err
+		}
+	} else {
+		if rb, err := clientset.Rbac().RoleBindings(nsName).Create(&rbacv1.RoleBinding{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "nautilus-psp",
+			},
+			RoleRef: rbacv1.RoleRef{
+				APIGroup: "rbac.authorization.k8s.io",
+				Kind:     "ClusterRole",
+				Name:     "prpuserpsp",
+			},
+			Subjects: []rbacv1.Subject{rbacv1.Subject{
+				Kind:     "User",
+				APIGroup: "rbac.authorization.k8s.io",
+				Name:     user.Spec.ISS + "#" + user.Spec.UserID}},
+		}); err != nil {
+			return rb, err
+		}
+	}
+
+	if rb, err := clientset.Rbac().RoleBindings(nsName).Get("nautilus-"+roleName, metav1.GetOptions{}); err == nil {
+		rb.Subjects = append(rb.Subjects, rbacv1.Subject{
+			Kind:     "User",
+			APIGroup: "rbac.authorization.k8s.io",
+			Name:     user.Spec.ISS + "#" + user.Spec.UserID})
+		return clientset.Rbac().RoleBindings(nsName).Update(rb)
 	}
 
 	return clientset.Rbac().RoleBindings(nsName).Create(&rbacv1.RoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "cilogon2",
+			Name: "nautilus-" + roleName,
 		},
 		RoleRef: rbacv1.RoleRef{
 			APIGroup: "rbac.authorization.k8s.io",
