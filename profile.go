@@ -199,7 +199,7 @@ func ProfileHandler(w http.ResponseWriter, r *http.Request) {
 
 	nsVars := ProfileTemplateVars{NamespaceBindings: nsList, PRPUsers: usersList.Items, IndexTemplateVars: buildIndexTemplateVars(session, w, r)}
 
-	t, err := template.New("layout.tmpl").ParseFiles("templates/layout.tmpl", "templates/namespaces.tmpl")
+	t, err := template.New("layout.tmpl").ParseFiles("templates/layout.tmpl", "templates/profile.tmpl")
 	if err != nil {
 		w.Write([]byte(err.Error()))
 	} else {
