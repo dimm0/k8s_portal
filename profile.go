@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	client "github.com/dimm0/k8s_portal/pkg/apis/optiputer.net/v1alpha1"
+	nautilusapi "github.com/dimm0/k8s_portal/pkg/apis/optiputer.net/v1alpha1"
 	"k8s.io/api/core/v1"
 
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -24,7 +24,7 @@ import (
 type ProfileTemplateVars struct {
 	IndexTemplateVars
 	NamespaceBindings []NamespaceUserBinding
-	PRPUsers          []client.PRPUser
+	PRPUsers          []nautilusapi.PRPUser
 }
 
 type NamespaceUserBinding struct {
@@ -45,7 +45,7 @@ func GetCrd() {
 		panic(err.Error())
 	}
 
-	if err := client.CreateCRD(crdclientset); err != nil {
+	if err := nautilusapi.CreateCRD(crdclientset); err != nil {
 		log.Printf("Error creating CRD: %s", err.Error())
 	}
 
@@ -54,17 +54,59 @@ func GetCrd() {
 
 	_, controller := cache.NewInformer(
 		crdclient.NewListWatch(),
-		&client.PRPUser{},
-		time.Minute*10,
+		&nautilusapi.PRPUser{},
+		time.Minute*5,
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
-				// fmt.Printf("add: %s \n", obj)
+				user, ok := obj.(*nautilusapi.PRPUser)
+				if !ok {
+					log.Printf("Expected PRPUser but other received %#v", obj)
+					return
+				}
+
+				updateClusterUserPrivileges(user)
 			},
 			DeleteFunc: func(obj interface{}) {
-				// fmt.Printf("delete: %s \n", obj)
+				user, ok := obj.(*nautilusapi.PRPUser)
+				if !ok {
+					log.Printf("Expected PRPUser but other received %#v", obj)
+					return
+				}
+
+				if rb, err := clientset.Rbac().ClusterRoleBindings().Get("nautilus-cluster-user", metav1.GetOptions{}); err == nil {
+					allSubjects := []rbacv1.Subject{} // to filter the user, in case we need to delete one
+					userName := user.Spec.ISS + "#" + user.Spec.UserID
+
+					found := false
+					for _, subj := range rb.Subjects {
+						if subj.Name == userName {
+							found = true
+						} else {
+							allSubjects = append(allSubjects, subj)
+						}
+					}
+					if found {
+						rb.Subjects = allSubjects
+						if _, err := clientset.Rbac().ClusterRoleBindings().Update(rb); err != nil {
+							log.Printf("Error updating user %s: %s", user.Name, err.Error())
+						}
+					}
+				}
 			},
 			UpdateFunc: func(oldObj, newObj interface{}) {
-				// fmt.Printf("Update old: %s \n      New: %s\n", oldObj, newObj)
+				oldUser, ok := oldObj.(*nautilusapi.PRPUser)
+				if !ok {
+					log.Printf("Expected PRPUser but other received %#v", oldObj)
+					return
+				}
+				newUser, ok := newObj.(*nautilusapi.PRPUser)
+				if !ok {
+					log.Printf("Expected PRPUser but other received %#v", newObj)
+					return
+				}
+				if oldUser.Spec.Role != newUser.Spec.Role {
+					updateClusterUserPrivileges(newUser)
+				}
 			},
 		},
 	)
@@ -74,6 +116,55 @@ func GetCrd() {
 
 	// Wait forever
 	select {}
+}
+
+func updateClusterUserPrivileges(user *nautilusapi.PRPUser) error {
+	userName := user.Spec.ISS + "#" + user.Spec.UserID
+
+	allSubjects := []rbacv1.Subject{} // to filter the user, in case we need to delete one
+
+	if rb, err := clientset.Rbac().ClusterRoleBindings().Get("nautilus-cluster-user", metav1.GetOptions{}); err == nil {
+		found := false
+		for _, subj := range rb.Subjects {
+			if subj.Name == userName {
+				found = true
+			} else {
+				allSubjects = append(allSubjects, subj)
+			}
+		}
+		if !user.IsGuest() && !found {
+			rb.Subjects = append(rb.Subjects, rbacv1.Subject{
+				Kind:     "User",
+				APIGroup: "rbac.authorization.k8s.io",
+				Name:     userName})
+			if _, err := clientset.Rbac().ClusterRoleBindings().Update(rb); err != nil {
+				return err
+			}
+		} else if user.IsGuest() && found {
+			rb.Subjects = allSubjects
+			if _, err := clientset.Rbac().ClusterRoleBindings().Update(rb); err != nil {
+				return err
+			}
+		}
+	} else if !user.IsGuest() {
+		if _, err := clientset.Rbac().ClusterRoleBindings().Create(&rbacv1.ClusterRoleBinding{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "nautilus-cluster-user",
+			},
+			RoleRef: rbacv1.RoleRef{
+				APIGroup: "rbac.authorization.k8s.io",
+				Kind:     "ClusterRole",
+				Name:     "nautilus-cluster-user",
+			},
+			Subjects: []rbacv1.Subject{rbacv1.Subject{
+				Kind:     "User",
+				APIGroup: "rbac.authorization.k8s.io",
+				Name:     userName}},
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Process the /profile path
@@ -104,6 +195,13 @@ func ProfileHandler(w http.ResponseWriter, r *http.Request) {
 	userclientset, err := user.GetUserClientset()
 	if err != nil {
 		session.AddFlash(fmt.Sprintf("Unexpected error: %s", err.Error()))
+		session.Save(r, w)
+		http.Redirect(w, r, "/", http.StatusFound)
+		return
+	}
+
+	if strings.ToLower(user.Spec.Role) != "admin" {
+		session.AddFlash("Only admins can manage namespaces")
 		session.Save(r, w)
 		http.Redirect(w, r, "/", http.StatusFound)
 		return
@@ -211,7 +309,7 @@ func ProfileHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // Returns the rolebindings for a user and a namespace
-func getUserNamespaceBindings(userId string, ns v1.Namespace, userclientset *kubernetes.Clientset) ([]rbacv1.RoleBinding, error) {
+func getUserNamespaceBindings(userID string, ns v1.Namespace, userclientset *kubernetes.Clientset) ([]rbacv1.RoleBinding, error) {
 	ret := []rbacv1.RoleBinding{}
 	rbList, err := userclientset.Rbac().RoleBindings(ns.GetName()).List(metav1.ListOptions{})
 	if err != nil {
@@ -224,7 +322,7 @@ func getUserNamespaceBindings(userId string, ns v1.Namespace, userclientset *kub
 			if strings.Contains(subjStr, "#") {
 				subjStr = strings.Split(subjStr, "#")[1]
 			}
-			if subjStr == userId {
+			if subjStr == userID {
 				ret = append(ret, rb)
 			}
 		}
@@ -233,7 +331,7 @@ func getUserNamespaceBindings(userId string, ns v1.Namespace, userclientset *kub
 }
 
 // Returns clusterrolebindings for a user
-func getUserClusterBindings(userId string) []rbacv1.ClusterRoleBinding {
+func getUserClusterBindings(userID string) []rbacv1.ClusterRoleBinding {
 	ret := []rbacv1.ClusterRoleBinding{}
 	rbList, _ := clientset.Rbac().ClusterRoleBindings().List(metav1.ListOptions{})
 	for _, rb := range rbList.Items {
@@ -242,7 +340,7 @@ func getUserClusterBindings(userId string) []rbacv1.ClusterRoleBinding {
 			if strings.Contains(subjStr, "#") {
 				subjStr = strings.Split(subjStr, "#")[1]
 			}
-			if subjStr == userId {
+			if subjStr == userID {
 				ret = append(ret, rb)
 			}
 		}
@@ -251,7 +349,7 @@ func getUserClusterBindings(userId string) []rbacv1.ClusterRoleBinding {
 }
 
 // Creates a new rolebinding
-func createNsRoleBinding(nsName string, roleName string, user *client.PRPUser, userclientset *kubernetes.Clientset) error {
+func createNsRoleBinding(nsName string, roleName string, user *nautilusapi.PRPUser, userclientset *kubernetes.Clientset) error {
 	userName := user.Spec.ISS + "#" + user.Spec.UserID
 
 	if rb, err := userclientset.Rbac().RoleBindings(nsName).Get("nautilus-psp", metav1.GetOptions{}); err == nil {
@@ -324,42 +422,6 @@ func createNsRoleBinding(nsName string, roleName string, user *client.PRPUser, u
 				return err
 			}
 		}
-
-		if rb, err := userclientset.Rbac().ClusterRoleBindings().Get("nautilus-cluster-admin", metav1.GetOptions{}); err == nil {
-			found := false
-			for _, subj := range rb.Subjects {
-				if subj.Name == userName {
-					found = true
-				}
-			}
-			if !found {
-				rb.Subjects = append(rb.Subjects, rbacv1.Subject{
-					Kind:     "User",
-					APIGroup: "rbac.authorization.k8s.io",
-					Name:     userName})
-				if _, err := userclientset.Rbac().ClusterRoleBindings().Update(rb); err != nil {
-					return err
-				}
-			}
-		} else {
-			if _, err := userclientset.Rbac().ClusterRoleBindings().Create(&rbacv1.ClusterRoleBinding{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "nautilus-cluster-admin",
-				},
-				RoleRef: rbacv1.RoleRef{
-					APIGroup: "rbac.authorization.k8s.io",
-					Kind:     "ClusterRole",
-					Name:     "nautilus-cluster-user",
-				},
-				Subjects: []rbacv1.Subject{rbacv1.Subject{
-					Kind:     "User",
-					APIGroup: "rbac.authorization.k8s.io",
-					Name:     userName}},
-			}); err != nil {
-				return err
-			}
-		}
-
 	}
 
 	if rb, err := userclientset.Rbac().RoleBindings(nsName).Get("nautilus-"+roleName, metav1.GetOptions{}); err == nil {

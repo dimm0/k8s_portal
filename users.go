@@ -42,7 +42,7 @@ func UsersHandler(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case "GET":
-		t, err := template.ParseFiles("templates/layout.tmpl", "templates/admin.tmpl")
+		t, err := template.ParseFiles("templates/layout.tmpl", "templates/users.tmpl")
 		if err != nil {
 			w.Write([]byte(err.Error()))
 		} else {
@@ -62,7 +62,7 @@ func UsersHandler(w http.ResponseWriter, r *http.Request) {
 				w.Write([]byte(err.Error()))
 			}
 		}
-	case "PUT":
+	case "POST":
 		if err := r.ParseForm(); err != nil {
 			w.Write([]byte(err.Error()))
 			return
@@ -75,7 +75,7 @@ func UsersHandler(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/", http.StatusFound)
 			return
 		}
-		if strings.ToLower(changeUser.Spec.Role) == "guest" {
+		if strings.ToLower(changeUser.Spec.Role) == "guest" && r.PostFormValue("action") == "validate" {
 			changeUser.Spec.Role = "user"
 			_, err := crdclient.Update(changeUser)
 			if err != nil {
@@ -83,22 +83,7 @@ func UsersHandler(w http.ResponseWriter, r *http.Request) {
 				w.Write([]byte(fmt.Sprintf("Error updating user: %s", err.Error())))
 				return
 			}
-		}
-		w.Write([]byte(changeUser.Spec.Role))
-	case "DELETE":
-		if err := r.ParseForm(); err != nil {
-			w.Write([]byte(err.Error()))
-			return
-		}
-
-		changeUser, err := GetUser(r.PostFormValue("user"))
-		if err != nil {
-			session.AddFlash(fmt.Sprintf("Unexpected error: %s", err.Error()))
-			session.Save(r, w)
-			http.Redirect(w, r, "/", http.StatusFound)
-			return
-		}
-		if strings.ToLower(changeUser.Spec.Role) == "user" {
+		} else if strings.ToLower(changeUser.Spec.Role) == "user" && r.PostFormValue("action") == "unvalidate" {
 			changeUser.Spec.Role = "guest"
 			_, err := crdclient.Update(changeUser)
 			if err != nil {

@@ -18,13 +18,13 @@
             <td>{{.Spec.Name}}</td>
             <td>{{.Spec.IDP}}</td>
             <td>{{.Spec.Email}}</td>
-            <td id="{{.Spec.UserID}}_role">{{.Spec.Role}}</td>
-            <td id="{{.Spec.UserID}}_modif">
-              {{if .User.Spec.Role "guest"}}
-                <a class="btn btn-outline-primary" href="JavaScript:verifyUser('{{.Spec.UserID}}', true)">Validate</a>
+            <td id="{{.Name}}_role">{{.Spec.Role}}</td>
+            <td id="{{.Name}}_modif">
+              {{if eq .Spec.Role "guest"}}
+                <a class="btn btn-outline-primary" href="JavaScript:verifyUser('{{.Name}}', '{{.Spec.UserID}}', true)">Validate</a>
               {{end}}
-              {{if .User.Spec.Role "user"}}
-                <a class="btn btn-outline-primary" href="JavaScript:verifyUser('{{.Spec.UserID}}'), false">Unvalidate</a>
+              {{if eq .Spec.Role "user"}}
+                <a class="btn btn-outline-primary" href="JavaScript:verifyUser('{{.Name}}', '{{.Spec.UserID}}', false)">Unvalidate</a>
               {{end}}
             </td>
           </tr>
@@ -36,18 +36,19 @@
 
 {{define "page_js"}}
   <script language="JavaScript">
-    function verifyUser(user, isValid) {
+    function verifyUser(username, userid, isValid) {
       $.ajax({
         url: "/users",
-        type: isValid?'PUT':'DELETE',
+        type: "POST",
+        data: { user: userid, action: isValid?"validate":"unvalidate" },
         success: function(result){
-          $("#"+user+"_role").html(result);
-          $("#"+user+"_modif").html('<a class="btn btn-outline-primary" href="JavaScript:verifyUser(\''+user+'\'), '+!isValid+'">'+isValid?"Unvalidate":"Validate"+'</a>');
+          $("#"+username+"_role").html(result);
+          var newButton = '<a class="btn btn-outline-primary" href="JavaScript:verifyUser(\''+username+'\', \''+userid+'\', '+!isValid+')">'+(isValid?'Unvalidate':'Validate')+'</a>';
+          console.debug(newButton);
+          $("#"+username+"_modif").html(newButton);
         },
-        error: function(result){
-          vex.dialog.alert({
-        	    message: "Error changing user state: "+result
-        	})
+        error: function(xhr, text){
+          vex.dialog.alert(xhr.responseText)
         },
       });
     }

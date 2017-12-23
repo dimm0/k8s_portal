@@ -1,6 +1,8 @@
 package v1alpha1
 
 import (
+	"strings"
+
 	authv1 "k8s.io/api/authorization/v1"
 
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -48,6 +50,10 @@ func (user PRPUser) GetUserClientset() (*kubernetes.Clientset, error) {
 
 	return kubernetes.NewForConfig(userk8sconfig)
 
+}
+
+func (user PRPUser) IsGuest() bool {
+	return strings.ToLower(user.Spec.Role) == "guest"
 }
 
 // Check if user can create accounts in the NS - so is he an admin

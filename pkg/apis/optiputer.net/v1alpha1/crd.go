@@ -89,7 +89,7 @@ func (f *CrdClient) Create(obj *PRPUser) (*PRPUser, error) {
 func (f *CrdClient) Update(obj *PRPUser) (*PRPUser, error) {
 	var result PRPUser
 	err := f.cl.Put().
-		Namespace(f.ns).Resource(f.plural).
+		Namespace(f.ns).Resource(f.plural).Name(obj.Name).
 		Body(obj).Do().Into(&result)
 	return &result, err
 }

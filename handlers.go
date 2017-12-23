@@ -85,6 +85,7 @@ func buildIndexTemplateVars(session *sessions.Session, w http.ResponseWriter, r 
 func GetUser(userID string) (*nautilusapi.PRPUser, error) {
 	userName := strings.Replace(userID, "://", "-", -1)
 	userName = strings.Replace(userName, "/", "-", -1)
+	userName = strings.Replace(userName, ".", "-", -1)
 
 	return crdclient.Get(strings.ToLower(userName))
 }
@@ -363,11 +364,12 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Failed to save session: "+e.Error(), http.StatusInternalServerError)
 			return
 		}
-		log.Printf("Saved session")
 
 		var Claims struct {
-			Name string `json:"name"`
-			IDP  string `json:"idp_name"`
+			Name      string `json:"name"`
+			FirstName string `json:"given_name"`
+			LastName  string `json:"family_name"`
+			IDP       string `json:"idp_name"`
 		}
 		if err = userInfo.Claims(&Claims); err != nil {
 			log.Printf("Error getting userInfo from claims %s", err.Error())
@@ -375,6 +377,7 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 
 		userName := strings.Replace(userInfo.Subject, "://", "-", -1)
 		userName = strings.Replace(userName, "/", "-", -1)
+		userName = strings.Replace(userName, ".", "-", -1)
 
 		user := &nautilusapi.PRPUser{
 			ObjectMeta: metav1.ObjectMeta{
@@ -388,6 +391,15 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 				IDP:    Claims.IDP,
 				Role:   "guest",
 			},
+		}
+
+		if user.Spec.Name == "" {
+			if Claims.FirstName != "" {
+				user.Spec.Name = Claims.FirstName
+				if Claims.LastName != "" {
+					user.Spec.Name += " " + Claims.LastName
+				}
+			}
 		}
 
 		result, err := crdclient.Create(user)
