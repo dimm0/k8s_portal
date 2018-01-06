@@ -345,12 +345,6 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	clusterInfoConfig, err := clientset.Core().ConfigMaps("kube-public").Get("cluster-info", metav1.GetOptions{})
-	if err != nil {
-		http.Error(w, "Failed to get cluster config: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-
 	switch stateVal {
 	case "auth":
 		userInfo, err := provider.UserInfo(r.Context(), oauth2.StaticTokenSource(oauth2Token))
@@ -413,6 +407,12 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 
 		http.Redirect(w, r, "/", http.StatusFound)
 	case "config":
+		clusterInfoConfig, err := clientset.Core().ConfigMaps("kube-public").Get("cluster-info", metav1.GetOptions{})
+		if err != nil {
+			http.Error(w, "Failed to get cluster config: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
 		co, err := clientcmd.Load([]byte(clusterInfoConfig.Data["kubeconfig"]))
 		clust := *co.Clusters[""]
 		co.Clusters[viper.GetString("cluster_name")] = &clust

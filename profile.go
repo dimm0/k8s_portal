@@ -250,9 +250,8 @@ func ProfileHandler(w http.ResponseWriter, r *http.Request) {
 	// User requested to add another user to namespace
 	addUserName := r.URL.Query().Get("addusername")
 	addUserNs := r.URL.Query().Get("adduserns")
-	addUserRole := r.URL.Query().Get("adduserrole")
 
-	if addUserName != "" && addUserNs != "" && addUserRole != "" {
+	if addUserName != "" && addUserNs != "" {
 		requser, err := GetUser(addUserName)
 		if err != nil {
 			session.AddFlash(fmt.Sprintf("Unexpected error: %s", err.Error()))
@@ -261,11 +260,11 @@ func ProfileHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if err := createNsRoleBinding(addUserNs, addUserRole, requser, userclientset); err != nil {
+		if err := createNsRoleBinding(addUserNs, "user", requser, userclientset); err != nil {
 			session.AddFlash(fmt.Sprintf("Error adding user to namespace namespace: %s", err.Error()))
 			session.Save(r, w)
 		} else {
-			session.AddFlash(fmt.Sprintf("Added user %s with role %s to namespace %s.", requser.Spec.Email, addUserRole, addUserNs))
+			session.AddFlash(fmt.Sprintf("Added user %s with role 'user' to namespace %s.", requser.Spec.Email, addUserNs))
 			session.Save(r, w)
 		}
 	}

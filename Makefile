@@ -26,5 +26,5 @@ restartpod:
 	kubectl delete pods --selector=k8s-app=oidc-auth -n kube-system
 
 pushconfig:
-	kubectl delete configmap portal-config -n kube-system
-	kubectl create configmap portal-config --from-file=config.toml=config_k8s.toml -n kube-system
+	-kubectl delete configmap portal-config -n kube-system
+	kubectl create configmap portal-config --from-file=config.toml=config_minikube.toml -n kube-system

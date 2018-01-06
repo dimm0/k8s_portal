@@ -1,23 +1,23 @@
-# apiVersion: v1
-# kind: ServiceAccount
-# metadata:
-#   name: oidc-auth-admin
-#   namespace: kube-system
-# ---
-# kind: ClusterRoleBinding
-# apiVersion: rbac.authorization.k8s.io/v1beta1
-# metadata:
-#   name: oidc-auth-admin
-#   namespace: kube-system
-# subjects:
-# - kind: ServiceAccount
-#   name: oidc-auth-admin
-#   namespace: kube-system
-# roleRef:
-#   kind: ClusterRole
-#   name: cluster-admin
-#   apiGroup: rbac.authorization.k8s.io
-# ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: oidc-auth-admin
+  namespace: kube-system
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1beta1
+metadata:
+  name: oidc-auth-admin
+  namespace: kube-system
+subjects:
+- kind: ServiceAccount
+  name: oidc-auth-admin
+  namespace: kube-system
+roleRef:
+  kind: ClusterRole
+  name: cluster-admin
+  apiGroup: rbac.authorization.k8s.io
+---
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
@@ -42,18 +42,10 @@ spec:
         volumeMounts:
         - name: config-volume
           mountPath: /config
-        - mountPath: "/storage"
-          name: "nfs"
-      nodeSelector:
-        core: "true"
       volumes:
       - name: config-volume
         configMap:
           name: portal-config
-      - name: nfs
-        nfs:
-          server: 67.58.53.150
-          path: "/Data/k8s-portal-nfs"
 ---
 kind: Service
 apiVersion: v1
