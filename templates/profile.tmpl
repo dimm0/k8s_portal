@@ -23,7 +23,7 @@
                 </td>
 		<td></td>
       	      {{else}}
-                <td>{{$value.Namespace.GetName}}</td>
+                <td><a href="JavaScript:viewns('{{$value.Namespace.GetName}}')">{{$value.Namespace.GetName}}</a></td>
                 <td>
                   {{range $value.RoleBindings}}
                     <span class="roleref">{{.RoleRef.Name}}</span>
@@ -44,6 +44,7 @@
 
 {{define "page_js"}}
 <script src="/media/remote-list.min.js"></script>
+<script src="//cdnjs.cloudflare.com/ajax/libs/nanoajax/0.4.3/nanoajax.min.js" integrity="sha256-LD4kEAL733s6q/X0SmbSsdteoGaOe4ny63lfVruo1ng=" crossorigin="anonymous"></script>
 <script language="JavaScript">
 function mkns() {
 	vex.dialog.prompt({
@@ -62,6 +63,21 @@ function delns(ns) {
 			document.location.href = "?delns="+ns;
 	    }
 	})
+}
+function viewns(ns) {
+      nanoajax.ajax({url:'/users?format=json&namespace='+ns, responseType: 'json'}, function (code, responseText) {
+        if(responseText.status != "success") {
+          console.debug("Error querying: "+responseText.status);
+        } else {
+          var res = responseText.data.result;
+	  console.debug(res);
+	    vex.dialog.alert({ unsafeMessage: [
+		'<b>Users:</b>',
+	    ].join('')});
+        }
+      })
+
+
 }
 function adduser(ns) {
     vex.dialog.open({
@@ -82,7 +98,7 @@ function adduser(ns) {
         }
     })
     $('input.autosuggest').remoteList({
-	source: "/users?format=json"
+	source: "/users?format=json&action=autocomplete"
     });
 }
 </script>
