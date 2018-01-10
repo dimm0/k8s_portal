@@ -98,8 +98,12 @@ func UsersHandler(w http.ResponseWriter, r *http.Request) {
 						if len(userBindings.Subjects) > 0 {
 							users := []nautilusapi.PRPUser{}
 							for _, userBinding := range userBindings.Subjects {
-								if user, err := crdclient.Get(strings.Split(userBinding.Name, "#")[1]); err == nil {
+								if user, err := GetUser(strings.Split(userBinding.Name, "#")[1]); err == nil {
 									users = append(users, *user)
+								} else {
+									w.WriteHeader(http.StatusInternalServerError)
+									w.Write([]byte(fmt.Sprintf("Error getting user: %s", err.Error())))
+									return
 								}
 							}
 							switch role {
@@ -109,6 +113,10 @@ func UsersHandler(w http.ResponseWriter, r *http.Request) {
 								nsUsers.Admins = users
 							}
 						}
+					} else {
+						w.WriteHeader(http.StatusInternalServerError)
+						w.Write([]byte(fmt.Sprintf("Error getting usersbindings: %s", err.Error())))
+						return
 					}
 				}
 

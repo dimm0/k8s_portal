@@ -66,14 +66,21 @@ function delns(ns) {
 }
 function viewns(ns) {
       nanoajax.ajax({url:'/users?format=json&namespace='+ns, responseType: 'json'}, function (code, responseText) {
-        if(responseText.status != "success") {
-          console.debug("Error querying: "+responseText.status);
+        if(code != 200) {
+          console.debug(responseText);
         } else {
-          var res = responseText.data.result;
-	  console.debug(res);
 	    vex.dialog.alert({ unsafeMessage: [
-		'<b>Users:</b>',
-	    ].join('')});
+		'<b>Users: </b>',
+		responseText.users.map(function(item) {
+		  return item.spec.Name+" &lt;"+item.spec.Email+"&gt;"
+		}).join(' '),
+		'<br/>',
+		'<b>Admins: </b>',
+		responseText.admins.map(function(item) {
+		  return item.spec.Name+" &lt;"+item.spec.Email+"&gt;"
+		}).join(' '),
+	    ].join(''),
+	    contentClassName: 'usersList'});
         }
       })
 
@@ -107,6 +114,9 @@ function adduser(ns) {
 {{define "page_css"}}
 
 <style>
+  .usersList .vex-dialog-message {
+    font-size: 0.6em;
+  }
   span.roleref {
     background: white;
     padding: 3px;
