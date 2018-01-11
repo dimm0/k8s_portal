@@ -113,10 +113,6 @@ func UsersHandler(w http.ResponseWriter, r *http.Request) {
 								nsUsers.Admins = users
 							}
 						}
-					} else {
-						w.WriteHeader(http.StatusInternalServerError)
-						w.Write([]byte(fmt.Sprintf("Error getting usersbindings: %s", err.Error())))
-						return
 					}
 				}
 

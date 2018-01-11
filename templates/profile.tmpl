@@ -1,112 +1,138 @@
 {{define "body"}}
-  <div class="container">
-      <div class="jumbotron">
-        <a class="btn btn-outline-primary" href="JavaScript:mkns()">Create new</a>
-        <p class="lead">Your namespaces:</p>
-        <table class="table table-striped">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Status</th>
-	      <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {{range $key, $value := .NamespaceBindings}}
-            <tr>
-      	      {{if eq $value.Namespace.GetName ""}}
-      	        <td><i>Cluster-wide</i></td>
-                <td>
-                  {{range $value.ClusterRoleBindings}}
-                    <span class="roleref">{{.RoleRef.Name}}</span>
-                  {{end}}
-                </td>
-		<td></td>
-      	      {{else}}
-                <td><a href="JavaScript:viewns('{{$value.Namespace.GetName}}')">{{$value.Namespace.GetName}}</a></td>
-                <td>
-                  {{range $value.RoleBindings}}
-                    <span class="roleref">{{.RoleRef.Name}}</span>
-                  {{end}}
-                </td>
-		<td>
-		  <button type="button" class="btn btn-danger" title="Delete namespace"><i class="fa fa-trash" aria-hidden="true" onclick="delns('{{$value.Namespace.GetName}}')"></i></button>
-		  <button type="button" class="btn btn-success" title="Add user"><i class="fa fa-address-book-o" aria-hidden="true" onclick="adduser('{{$value.Namespace.GetName}}')"></i></button>
-		</td>
-      	      {{end}}
-            </tr>
+<div class="container">
+  <div class="jumbotron">
+    <a class="btn btn-outline-primary" href="JavaScript:mkns()">Create new</a>
+    <p class="lead">Your namespaces:</p>
+    <table class="table table-striped">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range $key, $value := .NamespaceBindings}}
+        <tr>
+          {{if eq $value.Namespace.GetName ""}}
+          <td><i>Cluster-wide</i></td>
+          <td>
+            {{range $value.ClusterRoleBindings}}
+            <span class="roleref">{{.RoleRef.Name}}</span>
             {{end}}
-          </tbody>
-        </table>
-      </div>
+          </td>
+          <td></td>
+          {{else}}
+          <td><a href="JavaScript:viewns('{{$value.Namespace.GetName}}')">{{$value.Namespace.GetName}}</a></td>
+          <td>
+            {{range $value.RoleBindings}}
+            <span class="roleref">{{.RoleRef.Name}}</span>
+            {{end}}
+          </td>
+          <td>
+            <button type="button" class="btn btn-danger" title="Delete namespace" onclick="delns('{{$value.Namespace.GetName}}')"><i class="fa fa-trash" aria-hidden="true"></i></button>
+            <button type="button" class="btn btn-success" title="Add user" onclick="adduser('{{$value.Namespace.GetName}}')"><i class="fa fa-address-book-o" aria-hidden="true"></i></button>
+          </td>
+          {{end}}
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
   </div>
+</div>
 {{end}}
 
 {{define "page_js"}}
 <script src="/media/remote-list.min.js"></script>
-<script src="//cdnjs.cloudflare.com/ajax/libs/nanoajax/0.4.3/nanoajax.min.js" integrity="sha256-LD4kEAL733s6q/X0SmbSsdteoGaOe4ny63lfVruo1ng=" crossorigin="anonymous"></script>
 <script language="JavaScript">
 function mkns() {
-	vex.dialog.prompt({
-	    message: 'Namespace name',
-	    callback: function (value) {
-        if(value !== false)
-		      document.location.href = "?mkns="+value;
-	    }
-	})
+  vex.dialog.prompt({
+    message: 'Namespace name',
+    callback: function (value) {
+      if(value !== false)
+      document.location.href = "?mkns="+value;
+    }
+  })
 }
+
 function delns(ns) {
-	vex.dialog.confirm({
-	    message: 'Delete namespace '+ns+'? (May take some time)',
-	    callback: function (value) {
-	    	if(value)
-			document.location.href = "?delns="+ns;
-	    }
-	})
+  vex.dialog.confirm({
+    message: 'Delete namespace '+ns+'? (May take some time)',
+    callback: function (value) {
+      if(value)
+      document.location.href = "?delns="+ns;
+    }
+  })
 }
+
 function viewns(ns) {
-      nanoajax.ajax({url:'/users?format=json&namespace='+ns, responseType: 'json'}, function (code, responseText) {
-        if(code != 200) {
-          console.debug(responseText);
-        } else {
-	    vex.dialog.alert({ unsafeMessage: [
-		'<b>Users: </b>',
-		responseText.users.map(function(item) {
-		  return item.spec.Name+" &lt;"+item.spec.Email+"&gt;"
-		}).join(' '),
-		'<br/>',
-		'<b>Admins: </b>',
-		responseText.admins.map(function(item) {
-		  return item.spec.Name+" &lt;"+item.spec.Email+"&gt;"
-		}).join(' '),
-	    ].join(''),
-	    contentClassName: 'usersList'});
-        }
-      })
+  $.ajax({
+    url: '/users',
+    data: { format: "json", namespace: ns },
+    dataType: "json",
+    success: function(result, textStatus, xhr){
 
+      var usersStr = "";
+      if(result.users) {
+        usersStr = [
+          '<b>Users: </b>',
+          result.users.map(function(item) {
+            return "<span class='roleref'><i class='fa fa-trash' style='color:red; cursor: pointer;' title='Remove user from namespace' onclick='deluser(\""+item.spec.UserID+"\", \""+ns+"\")'></i> "+item.spec.Name+" &lt;"+item.spec.Email+"&gt;</span>"
+          }).join(' '),
+          '<br/>',
+        ].join('')
+      }
 
+      var adminsStr = "";
+      if(result.admins) {
+        adminsStr = [
+          '<b>Admins: </b>',
+          result.admins.map(function(item) {
+            return "<span class='roleref'><i class='fa fa-trash' style='color:red; cursor: pointer;' title='Remove admin from namespace' onclick='deluser(\""+item.spec.UserID+"\", \""+ns+"\")'></i> "+item.spec.Name+" &lt;"+item.spec.Email+"&gt;</span>"
+          }).join(' '),
+        ].join('')
+      }
+
+      if (adminsStr + usersStr == "") {
+        usersStr = "No users defined";
+      }
+
+      vex.dialog.alert({ unsafeMessage: [
+        usersStr,
+        adminsStr,
+      ].join('')});
+    },
+    error: function(xhr, text){
+      vex.dialog.alert(text)
+    },
+  });
 }
+
 function adduser(ns) {
-    vex.dialog.open({
-        message: 'Select user to add to the namespace.',
-        input: [
-            '<div class="vex-custom-field-wrapper">',
-                '<label for="user">User</label>',
-                '<div class="vex-custom-input-wrapper">',
-                    '<input name="user" type="search" class="autosuggest"/>',
-                '</div>',
-            '</div>'
-        ].join(''),
-        callback: function (data) {
-            if (!data) {
-                return console.log('Cancelled')
-            }
-            document.location.href = "?addusername="+data.user+"&adduserns="+ns;
-        }
-    })
-    $('input.autosuggest').remoteList({
-	source: "/users?format=json&action=autocomplete"
-    });
+  vex.dialog.open({
+    message: 'Select user to add to the namespace.',
+    input: [
+      '<div class="vex-custom-field-wrapper">',
+      '<label for="user">User</label>',
+      '<div class="vex-custom-input-wrapper">',
+      '<input name="user" type="search" class="autosuggest"/>',
+      '</div>',
+      '</div>'
+    ].join(''),
+    callback: function (data) {
+      if (!data) {
+        return console.log('Cancelled')
+      }
+      document.location.href = "?addusername="+data.user+"&adduserns="+ns;
+    }
+  })
+  $('input.autosuggest').remoteList({
+    source: "/users?format=json&action=autocomplete"
+  });
+}
+
+function deluser(user, ns) {
+  document.location.href = "?delusername="+user+"&deluserns="+ns;
 }
 </script>
 {{end}}
@@ -114,14 +140,11 @@ function adduser(ns) {
 {{define "page_css"}}
 
 <style>
-  .usersList .vex-dialog-message {
-    font-size: 0.6em;
-  }
-  span.roleref {
-    background: white;
-    padding: 3px;
-    border-radius: 3px;
-    font-size: 0.6em;
-  }
+span.roleref {
+  background: white;
+  padding: 3px;
+  border-radius: 3px;
+  font-size: 0.6em;
+}
 </style>
 {{end}}

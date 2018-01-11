@@ -220,7 +220,7 @@ func ProfileHandler(w http.ResponseWriter, r *http.Request) {
 					log.Printf("Error creating limits: %s", err.Error())
 				}
 
-				if err := createNsRoleBinding(createNsName, "admin", user, clientset); err != nil {
+				if err := createNsRoleBinding(createNsName, user, clientset); err != nil {
 					log.Printf("Error creating userbinding %s", err.Error())
 				}
 			}
@@ -260,7 +260,7 @@ func ProfileHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if err := createNsRoleBinding(addUserNs, "user", requser, userclientset); err != nil {
+		if err := createNsRoleBinding(addUserNs, requser, userclientset); err != nil {
 			session.AddFlash(fmt.Sprintf("Error adding user to namespace namespace: %s", err.Error()))
 			session.Save(r, w)
 		} else {
@@ -269,7 +269,29 @@ func ProfileHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if delNsName != "" || createNsName != "" || addUserName != "" {
+	// User requested to delete another user from namespace
+	delUserName := r.URL.Query().Get("delusername")
+	delUserNs := r.URL.Query().Get("deluserns")
+
+	if delUserName != "" && delUserNs != "" {
+		requser, err := GetUser(delUserName)
+		if err != nil {
+			session.AddFlash(fmt.Sprintf("Unexpected error: %s", err.Error()))
+			session.Save(r, w)
+			http.Redirect(w, r, "/", http.StatusFound)
+			return
+		}
+
+		if err := delNsRoleBinding(delUserNs, requser, userclientset); err != nil {
+			session.AddFlash(fmt.Sprintf("Error deleting user from namespace %s: %s", delUserNs, err.Error()))
+			session.Save(r, w)
+		} else {
+			session.AddFlash(fmt.Sprintf("Deleted user %s from namespace %s.", requser.Spec.Email, delUserNs))
+			session.Save(r, w)
+		}
+	}
+
+	if delNsName != "" || createNsName != "" || addUserName != "" || delUserName != "" {
 		http.Redirect(w, r, "/profile", 303)
 		return
 	}
@@ -348,7 +370,7 @@ func getUserClusterBindings(userID string) []rbacv1.ClusterRoleBinding {
 }
 
 // Creates a new rolebinding
-func createNsRoleBinding(nsName string, roleName string, user *nautilusapi.PRPUser, userclientset *kubernetes.Clientset) error {
+func createNsRoleBinding(nsName string, user *nautilusapi.PRPUser, userclientset *kubernetes.Clientset) error {
 	userName := user.Spec.ISS + "#" + user.Spec.UserID
 
 	if rb, err := userclientset.Rbac().RoleBindings(nsName).Get("nautilus-psp", metav1.GetOptions{}); err == nil {
@@ -386,7 +408,7 @@ func createNsRoleBinding(nsName string, roleName string, user *nautilusapi.PRPUs
 		}
 	}
 
-	if roleName == "admin" {
+	if user.Spec.Role == "admin" {
 		if rb, err := userclientset.Rbac().RoleBindings(nsName).Get("nautilus-admin-ext", metav1.GetOptions{}); err == nil {
 			found := false
 			for _, subj := range rb.Subjects {
@@ -423,7 +445,7 @@ func createNsRoleBinding(nsName string, roleName string, user *nautilusapi.PRPUs
 		}
 	}
 
-	if rb, err := userclientset.Rbac().RoleBindings(nsName).Get("nautilus-"+roleName, metav1.GetOptions{}); err == nil {
+	if rb, err := userclientset.Rbac().RoleBindings(nsName).Get("nautilus-"+user.Spec.Role, metav1.GetOptions{}); err == nil {
 		found := false
 		for _, subj := range rb.Subjects {
 			if subj.Name == userName {
@@ -441,12 +463,12 @@ func createNsRoleBinding(nsName string, roleName string, user *nautilusapi.PRPUs
 	} else {
 		_, err := userclientset.Rbac().RoleBindings(nsName).Create(&rbacv1.RoleBinding{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: "nautilus-" + roleName,
+				Name: "nautilus-" + user.Spec.Role,
 			},
 			RoleRef: rbacv1.RoleRef{
 				APIGroup: "rbac.authorization.k8s.io",
 				Kind:     "ClusterRole",
-				Name:     roleName,
+				Name:     user.Spec.Role,
 			},
 			Subjects: []rbacv1.Subject{rbacv1.Subject{
 				Kind:     "User",
@@ -457,6 +479,85 @@ func createNsRoleBinding(nsName string, roleName string, user *nautilusapi.PRPUs
 	}
 	return nil
 
+}
+
+// Deletes a rolebinding
+func delNsRoleBinding(nsName string, user *nautilusapi.PRPUser, userclientset *kubernetes.Clientset) error {
+	userName := user.Spec.ISS + "#" + user.Spec.UserID
+
+	if rb, err := userclientset.Rbac().RoleBindings(nsName).Get("nautilus-psp", metav1.GetOptions{}); err == nil {
+		allSubjects := []rbacv1.Subject{} // to filter the user, in case we need to delete one
+		found := false
+		for _, subj := range rb.Subjects {
+			if subj.Name == userName {
+				found = true
+			} else {
+				allSubjects = append(allSubjects, subj)
+			}
+		}
+		if found {
+			if len(allSubjects) == 0 {
+				if err := userclientset.Rbac().RoleBindings(nsName).Delete(rb.GetName(), &metav1.DeleteOptions{}); err != nil {
+					return err
+				}
+			} else {
+				rb.Subjects = allSubjects
+				if _, err := userclientset.Rbac().RoleBindings(nsName).Update(rb); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	if user.Spec.Role == "admin" {
+		if rb, err := userclientset.Rbac().RoleBindings(nsName).Get("nautilus-admin-ext", metav1.GetOptions{}); err == nil {
+			allSubjects := []rbacv1.Subject{} // to filter the user, in case we need to delete one
+			found := false
+			for _, subj := range rb.Subjects {
+				if subj.Name == userName {
+					found = true
+				} else {
+					allSubjects = append(allSubjects, subj)
+				}
+			}
+			if found {
+				if len(allSubjects) == 0 {
+					if err := userclientset.Rbac().RoleBindings(nsName).Delete(rb.GetName(), &metav1.DeleteOptions{}); err != nil {
+						return err
+					}
+				} else {
+					rb.Subjects = allSubjects
+					if _, err := userclientset.Rbac().RoleBindings(nsName).Update(rb); err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
+
+	if rb, err := userclientset.Rbac().RoleBindings(nsName).Get("nautilus-"+user.Spec.Role, metav1.GetOptions{}); err == nil {
+		allSubjects := []rbacv1.Subject{} // to filter the user, in case we need to delete one
+		found := false
+		for _, subj := range rb.Subjects {
+			if subj.Name == userName {
+				found = true
+			} else {
+				allSubjects = append(allSubjects, subj)
+			}
+		}
+		if found {
+			if len(allSubjects) == 0 {
+				if err := userclientset.Rbac().RoleBindings(nsName).Delete(rb.GetName(), &metav1.DeleteOptions{}); err != nil {
+					return err
+				}
+			} else {
+				rb.Subjects = allSubjects
+				_, err := userclientset.Rbac().RoleBindings(nsName).Update(rb)
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // Creates a namespace default limits
