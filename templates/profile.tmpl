@@ -43,7 +43,7 @@
 {{end}}
 
 {{define "page_js"}}
-<script src="/media/remote-list.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-autocomplete/1.0.7/jquery.auto-complete.min.js" integrity="sha256-zs4Ql/EnwyWVY+mTbGS2WIMLdfYGtQOhkeUtOawKZVY=" crossorigin="anonymous"></script>
 <script language="JavaScript">
 function mkns() {
   vex.dialog.prompt({
@@ -115,7 +115,7 @@ function adduser(ns) {
       '<div class="vex-custom-field-wrapper">',
       '<label for="user">User</label>',
       '<div class="vex-custom-input-wrapper">',
-      '<input name="user" type="search" class="autosuggest"/>',
+      '<input name="user" type="text" class="autosuggest"/>',
       '</div>',
       '</div>'
     ].join(''),
@@ -126,8 +126,18 @@ function adduser(ns) {
       document.location.href = "?addusername="+data.user+"&adduserns="+ns;
     }
   })
-  $('input.autosuggest').remoteList({
-    source: "/users?format=json&action=autocomplete"
+  var xhr;
+  $('input.autosuggest').autoComplete({
+    minChars: 2,
+    source: function(term, suggest){
+    	try { xhr.abort(); } catch(e){}
+	xhr = $.getJSON('/users', { format:"json", action:"autocomplete", term: term }, function(data){ suggest(data); });
+    },
+    renderItem: function (item, search){
+ 	search = search.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+    	var re = new RegExp("(" + search.split(' ').join('|') + ")", "gi");
+        return '<div class="autocomplete-suggestion" data-val="' + item.value + '">'+ item.label.replace(re, "<b>$1</b>") + '</div>';
+    }
   });
 }
 
@@ -139,6 +149,7 @@ function deluser(user, ns) {
 
 {{define "page_css"}}
 
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jquery-autocomplete/1.0.7/jquery.auto-complete.min.css" integrity="sha256-MFTTStFZmJT7CqZBPyRVaJtI2P9ovNBbwmr0/KErfEc=" crossorigin="anonymous" />
 <style>
 span.roleref {
   background: white;

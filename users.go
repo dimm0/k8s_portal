@@ -64,12 +64,20 @@ func UsersHandler(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("format") == "json" {
 
 			if r.URL.Query().Get("action") == "autocomplete" {
+				term := r.URL.Query().Get("term")
+				if term == "" {
+					w.WriteHeader(http.StatusInternalServerError)
+					w.Write([]byte("Please provide term"))
+					return
+				}
 				users := []nautilusapi.PRPUser{}
 				autocompleteUsers := []AutoCompleteItem{}
 				if curusers, err := crdclient.List(meta_v1.ListOptions{}); err == nil {
 					users = curusers.Items
 					for _, user := range users {
-						autocompleteUsers = append(autocompleteUsers, AutoCompleteItem{user.Spec.UserID, user.Spec.Name + " <" + user.Spec.Email + ">"})
+						if strings.Contains(user.Spec.Name+" "+user.Spec.Email, term) {
+							autocompleteUsers = append(autocompleteUsers, AutoCompleteItem{user.Spec.UserID, user.Spec.Name + " &lt;" + user.Spec.Email + "&gt;"})
+						}
 					}
 					if autocomplUsersJson, err := json.Marshal(autocompleteUsers); err == nil {
 						w.Write(autocomplUsersJson)
