@@ -1,17 +1,17 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: oidc-auth-admin
+  name: nautilus-portal
   namespace: kube-system
 ---
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1beta1
 metadata:
-  name: oidc-auth-admin
+  name: nautilus-portal
   namespace: kube-system
 subjects:
 - kind: ServiceAccount
-  name: oidc-auth-admin
+  name: nautilus-portal
   namespace: kube-system
 roleRef:
   kind: ClusterRole
@@ -22,22 +22,22 @@ apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
   labels:
-    k8s-app: oidc-auth-dev
-  name: oidc-auth-dev
+    k8s-app: nautilus-portal
+  name: nautilus-portal
   namespace: kube-system
 spec:
   replicas: 1
   template:
     metadata:
       labels:
-        k8s-app: oidc-auth-dev
+        k8s-app: nautilus-portal
     spec:
-      serviceAccountName: oidc-auth-admin
+      serviceAccountName: nautilus-portal
       imagePullSecrets:
         - name: gcr-json-key
       containers:
-      - name: oidc-auth
-        image: us.gcr.io/prp-k8s/oidc-auth-dev:latest
+      - name: nautilus-portal
+        image: us.gcr.io/prp-k8s/nautilus-portal:latest
         imagePullPolicy: Always
         volumeMounts:
         - name: config-volume
@@ -51,8 +51,8 @@ kind: Service
 apiVersion: v1
 metadata:
   labels:
-    k8s-app: oidc-auth-dev
-  name: oidc-auth-dev
+    k8s-app: nautilus-portal
+  name: nautilus-portal
   namespace: kube-system
 spec:
   type: NodePort
@@ -60,4 +60,4 @@ spec:
   - port: 80
     targetPort: 80
   selector:
-    k8s-app: oidc-auth-dev
+    k8s-app: nautilus-portal

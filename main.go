@@ -191,18 +191,19 @@ func SetupSecurity() error {
 				HostIPC:     false,
 				HostPID:     false,
 				RunAsUser: v1beta1.RunAsUserStrategyOptions{
-					Rule: v1beta1.RunAsUserStrategyMustRunAsNonRoot,
+					Rule:   v1beta1.RunAsUserStrategyMustRunAs,
+					Ranges: []v1beta1.IDRange{v1beta1.IDRange{Min: 10000, Max: 20000}},
 				},
 				SELinux: v1beta1.SELinuxStrategyOptions{
 					Rule: v1beta1.SELinuxStrategyRunAsAny,
 				},
 				SupplementalGroups: v1beta1.SupplementalGroupsStrategyOptions{
 					Rule:   v1beta1.SupplementalGroupsStrategyMustRunAs,
-					Ranges: []v1beta1.IDRange{v1beta1.IDRange{Min: 1, Max: 65535}},
+					Ranges: []v1beta1.IDRange{v1beta1.IDRange{Min: 10000, Max: 20000}},
 				},
 				FSGroup: v1beta1.FSGroupStrategyOptions{
 					Rule:   v1beta1.FSGroupStrategyMustRunAs,
-					Ranges: []v1beta1.IDRange{v1beta1.IDRange{Min: 1, Max: 65535}},
+					Ranges: []v1beta1.IDRange{v1beta1.IDRange{Min: 10000, Max: 20000}},
 				},
 				ReadOnlyRootFilesystem: false,
 			},
@@ -212,16 +213,16 @@ func SetupSecurity() error {
 		}
 	}
 
-	if _, err := clientset.Rbac().ClusterRoles().Get("nautilus-user-psp", metav1.GetOptions{}); err != nil {
+	if _, err := clientset.Rbac().ClusterRoles().Get("psp:nautilus-user", metav1.GetOptions{}); err != nil {
 		if _, err := clientset.Rbac().ClusterRoles().Create(&rbacv1.ClusterRole{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: "nautilus-user-psp",
+				Name: "psp:nautilus-user",
 			},
 			Rules: []rbacv1.PolicyRule{
 				rbacv1.PolicyRule{
 					APIGroups:     []string{"extensions"},
 					Verbs:         []string{"use"},
-					Resources:     []string{"podsecuritypolicy"},
+					Resources:     []string{"podsecuritypolicies"},
 					ResourceNames: []string{"nautilususerpolicy"},
 				},
 			},

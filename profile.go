@@ -75,11 +75,10 @@ func GetCrd() {
 
 				if rb, err := clientset.Rbac().ClusterRoleBindings().Get("nautilus-cluster-user", metav1.GetOptions{}); err == nil {
 					allSubjects := []rbacv1.Subject{} // to filter the user, in case we need to delete one
-					userName := user.Spec.ISS + "#" + user.Spec.UserID
 
 					found := false
 					for _, subj := range rb.Subjects {
-						if subj.Name == userName {
+						if subj.Name == user.Spec.UserID {
 							found = true
 						} else {
 							allSubjects = append(allSubjects, subj)
@@ -119,14 +118,12 @@ func GetCrd() {
 }
 
 func updateClusterUserPrivileges(user *nautilusapi.PRPUser) error {
-	userName := user.Spec.ISS + "#" + user.Spec.UserID
-
 	allSubjects := []rbacv1.Subject{} // to filter the user, in case we need to delete one
 
 	if rb, err := clientset.Rbac().ClusterRoleBindings().Get("nautilus-cluster-user", metav1.GetOptions{}); err == nil {
 		found := false
 		for _, subj := range rb.Subjects {
-			if subj.Name == userName {
+			if subj.Name == user.Spec.UserID {
 				found = true
 			} else {
 				allSubjects = append(allSubjects, subj)
@@ -136,7 +133,7 @@ func updateClusterUserPrivileges(user *nautilusapi.PRPUser) error {
 			rb.Subjects = append(rb.Subjects, rbacv1.Subject{
 				Kind:     "User",
 				APIGroup: "rbac.authorization.k8s.io",
-				Name:     userName})
+				Name:     user.Spec.UserID})
 			if _, err := clientset.Rbac().ClusterRoleBindings().Update(rb); err != nil {
 				return err
 			}
@@ -159,7 +156,7 @@ func updateClusterUserPrivileges(user *nautilusapi.PRPUser) error {
 			Subjects: []rbacv1.Subject{rbacv1.Subject{
 				Kind:     "User",
 				APIGroup: "rbac.authorization.k8s.io",
-				Name:     userName}},
+				Name:     user.Spec.UserID}},
 		}); err != nil {
 			return err
 		}
@@ -261,7 +258,7 @@ func ProfileHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if err := createNsRoleBinding(addUserNs, requser, userclientset); err != nil {
-			session.AddFlash(fmt.Sprintf("Error adding user to namespace namespace: %s", err.Error()))
+			session.AddFlash(fmt.Sprintf("Error adding user to namespace: %s", err.Error()))
 			session.Save(r, w)
 		} else {
 			session.AddFlash(fmt.Sprintf("Added user %s with role 'user' to namespace %s.", requser.Spec.Email, addUserNs))
@@ -340,9 +337,6 @@ func getUserNamespaceBindings(userID string, ns v1.Namespace, userclientset *kub
 	for _, rb := range rbList.Items {
 		for _, subj := range rb.Subjects {
 			var subjStr = subj.Name
-			if strings.Contains(subjStr, "#") {
-				subjStr = strings.Split(subjStr, "#")[1]
-			}
 			if subjStr == userID {
 				ret = append(ret, rb)
 			}
@@ -358,9 +352,6 @@ func getUserClusterBindings(userID string) []rbacv1.ClusterRoleBinding {
 	for _, rb := range rbList.Items {
 		for _, subj := range rb.Subjects {
 			var subjStr = subj.Name
-			if strings.Contains(subjStr, "#") {
-				subjStr = strings.Split(subjStr, "#")[1]
-			}
 			if subjStr == userID {
 				ret = append(ret, rb)
 			}
@@ -371,12 +362,10 @@ func getUserClusterBindings(userID string) []rbacv1.ClusterRoleBinding {
 
 // Creates a new rolebinding
 func createNsRoleBinding(nsName string, user *nautilusapi.PRPUser, userclientset *kubernetes.Clientset) error {
-	userName := user.Spec.ISS + "#" + user.Spec.UserID
-
-	if rb, err := userclientset.Rbac().RoleBindings(nsName).Get("nautilus-psp", metav1.GetOptions{}); err == nil {
+	if rb, err := userclientset.Rbac().RoleBindings(nsName).Get("psp:nautilus-user", metav1.GetOptions{}); err == nil {
 		found := false
 		for _, subj := range rb.Subjects {
-			if subj.Name == userName {
+			if subj.Name == user.Spec.UserID {
 				found = true
 			}
 		}
@@ -384,7 +373,7 @@ func createNsRoleBinding(nsName string, user *nautilusapi.PRPUser, userclientset
 			rb.Subjects = append(rb.Subjects, rbacv1.Subject{
 				Kind:     "User",
 				APIGroup: "rbac.authorization.k8s.io",
-				Name:     userName})
+				Name:     user.Spec.UserID})
 			if _, err := userclientset.Rbac().RoleBindings(nsName).Update(rb); err != nil {
 				return err
 			}
@@ -392,17 +381,22 @@ func createNsRoleBinding(nsName string, user *nautilusapi.PRPUser, userclientset
 	} else {
 		if _, err := userclientset.Rbac().RoleBindings(nsName).Create(&rbacv1.RoleBinding{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: "nautilus-psp",
+				Name: "psp:nautilus-user",
 			},
 			RoleRef: rbacv1.RoleRef{
 				APIGroup: "rbac.authorization.k8s.io",
 				Kind:     "ClusterRole",
-				Name:     "nautilus-user-psp",
+				Name:     "psp:nautilus-user",
 			},
-			Subjects: []rbacv1.Subject{rbacv1.Subject{
-				Kind:     "User",
-				APIGroup: "rbac.authorization.k8s.io",
-				Name:     userName}},
+			Subjects: []rbacv1.Subject{
+				rbacv1.Subject{
+					Kind: "ServiceAccount",
+					Name: "default"},
+				rbacv1.Subject{
+					Kind:     "User",
+					APIGroup: "rbac.authorization.k8s.io",
+					Name:     user.Spec.UserID},
+			},
 		}); err != nil {
 			return err
 		}
@@ -412,7 +406,7 @@ func createNsRoleBinding(nsName string, user *nautilusapi.PRPUser, userclientset
 		if rb, err := userclientset.Rbac().RoleBindings(nsName).Get("nautilus-admin-ext", metav1.GetOptions{}); err == nil {
 			found := false
 			for _, subj := range rb.Subjects {
-				if subj.Name == userName {
+				if subj.Name == user.Spec.UserID {
 					found = true
 				}
 			}
@@ -420,7 +414,7 @@ func createNsRoleBinding(nsName string, user *nautilusapi.PRPUser, userclientset
 				rb.Subjects = append(rb.Subjects, rbacv1.Subject{
 					Kind:     "User",
 					APIGroup: "rbac.authorization.k8s.io",
-					Name:     userName})
+					Name:     user.Spec.UserID})
 				if _, err := userclientset.Rbac().RoleBindings(nsName).Update(rb); err != nil {
 					return err
 				}
@@ -438,7 +432,7 @@ func createNsRoleBinding(nsName string, user *nautilusapi.PRPUser, userclientset
 				Subjects: []rbacv1.Subject{rbacv1.Subject{
 					Kind:     "User",
 					APIGroup: "rbac.authorization.k8s.io",
-					Name:     userName}},
+					Name:     user.Spec.UserID}},
 			}); err != nil {
 				return err
 			}
@@ -448,7 +442,7 @@ func createNsRoleBinding(nsName string, user *nautilusapi.PRPUser, userclientset
 	if rb, err := userclientset.Rbac().RoleBindings(nsName).Get("nautilus-"+user.Spec.Role, metav1.GetOptions{}); err == nil {
 		found := false
 		for _, subj := range rb.Subjects {
-			if subj.Name == userName {
+			if subj.Name == user.Spec.UserID {
 				found = true
 			}
 		}
@@ -456,11 +450,18 @@ func createNsRoleBinding(nsName string, user *nautilusapi.PRPUser, userclientset
 			rb.Subjects = append(rb.Subjects, rbacv1.Subject{
 				Kind:     "User",
 				APIGroup: "rbac.authorization.k8s.io",
-				Name:     userName})
+				Name:     user.Spec.UserID})
 			_, err := userclientset.Rbac().RoleBindings(nsName).Update(rb)
 			return err
 		}
 	} else {
+		clusterRoleName := ""
+		switch user.Spec.Role {
+		case "user":
+			clusterRoleName = "edit"
+		case "admin":
+			clusterRoleName = "admin"
+		}
 		_, err := userclientset.Rbac().RoleBindings(nsName).Create(&rbacv1.RoleBinding{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "nautilus-" + user.Spec.Role,
@@ -468,12 +469,12 @@ func createNsRoleBinding(nsName string, user *nautilusapi.PRPUser, userclientset
 			RoleRef: rbacv1.RoleRef{
 				APIGroup: "rbac.authorization.k8s.io",
 				Kind:     "ClusterRole",
-				Name:     user.Spec.Role,
+				Name:     clusterRoleName,
 			},
 			Subjects: []rbacv1.Subject{rbacv1.Subject{
 				Kind:     "User",
 				APIGroup: "rbac.authorization.k8s.io",
-				Name:     userName}},
+				Name:     user.Spec.UserID}},
 		})
 		return err
 	}
@@ -483,13 +484,11 @@ func createNsRoleBinding(nsName string, user *nautilusapi.PRPUser, userclientset
 
 // Deletes a rolebinding
 func delNsRoleBinding(nsName string, user *nautilusapi.PRPUser, userclientset *kubernetes.Clientset) error {
-	userName := user.Spec.ISS + "#" + user.Spec.UserID
-
-	if rb, err := userclientset.Rbac().RoleBindings(nsName).Get("nautilus-psp", metav1.GetOptions{}); err == nil {
+	if rb, err := userclientset.Rbac().RoleBindings(nsName).Get("psp:nautilus-user", metav1.GetOptions{}); err == nil {
 		allSubjects := []rbacv1.Subject{} // to filter the user, in case we need to delete one
 		found := false
 		for _, subj := range rb.Subjects {
-			if subj.Name == userName {
+			if subj.Name == user.Spec.UserID {
 				found = true
 			} else {
 				allSubjects = append(allSubjects, subj)
@@ -514,7 +513,7 @@ func delNsRoleBinding(nsName string, user *nautilusapi.PRPUser, userclientset *k
 			allSubjects := []rbacv1.Subject{} // to filter the user, in case we need to delete one
 			found := false
 			for _, subj := range rb.Subjects {
-				if subj.Name == userName {
+				if subj.Name == user.Spec.UserID {
 					found = true
 				} else {
 					allSubjects = append(allSubjects, subj)
@@ -539,7 +538,7 @@ func delNsRoleBinding(nsName string, user *nautilusapi.PRPUser, userclientset *k
 		allSubjects := []rbacv1.Subject{} // to filter the user, in case we need to delete one
 		found := false
 		for _, subj := range rb.Subjects {
-			if subj.Name == userName {
+			if subj.Name == user.Spec.UserID {
 				found = true
 			} else {
 				allSubjects = append(allSubjects, subj)

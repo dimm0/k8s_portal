@@ -45,7 +45,7 @@ func (user PRPUser) GetUserClientset() (*kubernetes.Clientset, error) {
 	}
 
 	userk8sconfig.Impersonate = rest.ImpersonationConfig{
-		UserName: user.Spec.ISS + "#" + user.Spec.UserID,
+		UserName: user.Spec.UserID,
 	}
 
 	return kubernetes.NewForConfig(userk8sconfig)

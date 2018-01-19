@@ -106,7 +106,7 @@ func UsersHandler(w http.ResponseWriter, r *http.Request) {
 						if len(userBindings.Subjects) > 0 {
 							users := []nautilusapi.PRPUser{}
 							for _, userBinding := range userBindings.Subjects {
-								if user, err := GetUser(strings.Split(userBinding.Name, "#")[1]); err == nil {
+								if user, err := GetUser(userBinding.Name); err == nil {
 									users = append(users, *user)
 								} else {
 									w.WriteHeader(http.StatusInternalServerError)
