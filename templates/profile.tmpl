@@ -129,14 +129,14 @@ function adduser(ns) {
   var xhr;
   $('input.autosuggest').autoComplete({
     minChars: 2,
-    source: function(term, suggest){
+    source: function(term, suggest) {
     	try { xhr.abort(); } catch(e){}
-	xhr = $.getJSON('/users', { format:"json", action:"autocomplete", term: term }, function(data){ suggest(data); });
+	    xhr = $.getJSON('/users', { format:"json", action:"autocomplete", term: term }, function(data){ suggest(data); });
     },
-    renderItem: function (item, search){
- 	search = search.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+    renderItem: function (item, search) {
+ 	    search = search.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
     	var re = new RegExp("(" + search.split(' ').join('|') + ")", "gi");
-        return '<div class="autocomplete-suggestion" data-val="' + item.value + '">'+ item.label.replace(re, "<b>$1</b>") + '</div>';
+      return '<div class="autocomplete-suggestion" data-val="' + item.value + '">'+ item.label.replace(re, "<b>$1</b>") + '</div>';
     }
   });
 }

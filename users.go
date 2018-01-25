@@ -75,7 +75,7 @@ func UsersHandler(w http.ResponseWriter, r *http.Request) {
 				if curusers, err := crdclient.List(meta_v1.ListOptions{}); err == nil {
 					users = curusers.Items
 					for _, user := range users {
-						if strings.Contains(user.Spec.Name+" "+user.Spec.Email, term) {
+						if strings.Contains(strings.ToLower(user.Spec.Name+" "+user.Spec.Email), strings.ToLower(term)) {
 							autocompleteUsers = append(autocompleteUsers, AutoCompleteItem{user.Spec.UserID, user.Spec.Name + " &lt;" + user.Spec.Email + "&gt;"})
 						}
 					}
