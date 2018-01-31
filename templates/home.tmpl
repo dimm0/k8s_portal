@@ -40,16 +40,15 @@
             This example requests 1 GPU device. You can have up to 8 per node.
             Currently we have 4 nodes set up for GPUs:
             <ul>
-              <li><a href="https://grafana.k8s.optiputer.net/dashboard/db/cuda-gpu?var-node=67.58.53.155:9114">k8s-gpu-01.calit2.optiputer.net</a></li>
-              <li><a href="https://grafana.k8s.optiputer.net/dashboard/db/cuda-gpu?var-node=67.58.53.156:9114">k8s-gpu-02.calit2.optiputer.net</a></li>
-              <li><a href="https://grafana.k8s.optiputer.net/dashboard/db/cuda-gpu?var-node=198.17.101.69:9114">k8s-gpu-03.sdsc.optiputer.net</a></li>
-              <li><a href="https://grafana.k8s.optiputer.net/dashboard/db/cuda-gpu?var-node=192.5.19.133:9114">fiona8.calit2.uci.edu</a></li>
+              <li><a href="https://grafana.nautilus.optiputer.net/dashboard/db/cuda-gpu?var-node=67.58.53.155:9114">k8s-gpu-01.calit2.optiputer.net</a></li>
+              <li><a href="https://grafana.nautilus.optiputer.net/dashboard/db/cuda-gpu?var-node=67.58.53.156:9114">k8s-gpu-02.calit2.optiputer.net</a></li>
+              <li><a href="https://grafana.nautilus.optiputer.net/dashboard/db/cuda-gpu?var-node=198.17.101.69:9114">k8s-gpu-03.sdsc.optiputer.net</a></li>
             </ul>
             If you request GPU devices in your POD, kubernetes will auto schedule your pod to the appropriate node. There's no need to specify location manually.
             <br/><br/>
             <h5>Attaching Ceph blockdevice</h5>
-            <p>Use the <a href="https://github.com/dimm0/prp_k8s_config/blob/master/volume-example.yaml">volume example POD</a> definition to create your own pod with <a href="https://grafana.k8s.optiputer.net/dashboard/db/rook-ceph">Rook block volume</a> attached.</p>
-            <p><a href="https://github.com/rook/rook/blob/master/Documentation/k8s-filesystem.md">Shared filesystem</a> is also supported.</p>
+            <p>Use the <a href="https://github.com/dimm0/prp_k8s_config/blob/master/volume-example.yaml">volume example POD</a> definition to create your own pod with <a href="https://grafana.nautilus.optiputer.net/dashboard/db/rook-ceph">Rook block volume</a> attached.</p>
+            <p><a href="https://github.com/rook/rook/blob/master/Documentation/filesystem.md">Shared filesystem</a> is also supported.</p>
           </div>
         </div>
       </div>
