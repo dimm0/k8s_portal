@@ -191,20 +191,23 @@ func SetupSecurity() error {
 				HostNetwork: false,
 				HostIPC:     false,
 				HostPID:     false,
+				HostPorts: []v1beta1.HostPortRange{
+					v1beta1.HostPortRange{
+						Min: 1024,
+						Max: 65536,
+					},
+				},
 				RunAsUser: v1beta1.RunAsUserStrategyOptions{
-					Rule:   v1beta1.RunAsUserStrategyMustRunAs,
-					Ranges: []v1beta1.IDRange{v1beta1.IDRange{Min: 10000, Max: 20000}},
+					Rule: v1beta1.RunAsUserStrategyRunAsAny,
 				},
 				SELinux: v1beta1.SELinuxStrategyOptions{
 					Rule: v1beta1.SELinuxStrategyRunAsAny,
 				},
 				SupplementalGroups: v1beta1.SupplementalGroupsStrategyOptions{
-					Rule:   v1beta1.SupplementalGroupsStrategyMustRunAs,
-					Ranges: []v1beta1.IDRange{v1beta1.IDRange{Min: 10000, Max: 20000}},
+					Rule: v1beta1.SupplementalGroupsStrategyRunAsAny,
 				},
 				FSGroup: v1beta1.FSGroupStrategyOptions{
-					Rule:   v1beta1.FSGroupStrategyMustRunAs,
-					Ranges: []v1beta1.IDRange{v1beta1.IDRange{Min: 10000, Max: 20000}},
+					Rule: v1beta1.FSGroupStrategyRunAsAny,
 				},
 				ReadOnlyRootFilesystem: false,
 			},
