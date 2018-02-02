@@ -186,6 +186,7 @@ func SetupSecurity() error {
 					v1beta1.Secret,
 					v1beta1.DownwardAPI,
 					v1beta1.PersistentVolumeClaim,
+					v1beta1.GitRepo,
 				},
 				HostNetwork: false,
 				HostIPC:     false,

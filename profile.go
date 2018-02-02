@@ -261,7 +261,7 @@ func ProfileHandler(w http.ResponseWriter, r *http.Request) {
 			session.AddFlash(fmt.Sprintf("Error adding user to namespace: %s", err.Error()))
 			session.Save(r, w)
 		} else {
-			session.AddFlash(fmt.Sprintf("Added user %s with role 'user' to namespace %s.", requser.Spec.Email, addUserNs))
+			session.AddFlash(fmt.Sprintf("Added user %s with role '%s' to namespace %s.", requser.Spec.Email, requser.Spec.Role, addUserNs))
 			session.Save(r, w)
 		}
 	}
