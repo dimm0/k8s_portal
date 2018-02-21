@@ -184,6 +184,7 @@ func SetupSecurity() error {
 					v1beta1.EmptyDir,
 					// v1beta1.Projected,
 					v1beta1.Secret,
+					v1beta1.NFS,
 					v1beta1.DownwardAPI,
 					v1beta1.PersistentVolumeClaim,
 					v1beta1.GitRepo,
