@@ -77,7 +77,7 @@ function viewns(ns) {
         usersStr = [
           '<b>Users: </b>',
           result.users.map(function(item) {
-            return "<span class='roleref'><i class='fa fa-trash' style='color:red; cursor: pointer;' title='Remove user from namespace' onclick='deluser(\""+item.spec.UserID+"\", \""+ns+"\")'></i> "+item.spec.Name+" &lt;"+item.spec.Email+"&gt;</span>"
+            return "<span class='roleref'><i class='fa fa-trash' style='color:red; cursor: pointer;' title='Remove user from namespace' onclick='deluser(\""+item.spec.UserID+"\", \""+ns+"\")'></i> "+item.spec.Name+" &lt;"+"<a href='mailto:"+item.spec.Email+"'>"+item.spec.Email+"</a>&gt;</span>"
           }).join(' '),
           '<br/>',
         ].join('')
@@ -88,7 +88,7 @@ function viewns(ns) {
         adminsStr = [
           '<b>Admins: </b>',
           result.admins.map(function(item) {
-            return "<span class='roleref'><i class='fa fa-trash' style='color:red; cursor: pointer;' title='Remove admin from namespace' onclick='deluser(\""+item.spec.UserID+"\", \""+ns+"\")'></i> "+item.spec.Name+" &lt;"+item.spec.Email+"&gt;</span>"
+            return "<span class='roleref'><i class='fa fa-trash' style='color:red; cursor: pointer;' title='Remove admin from namespace' onclick='deluser(\""+item.spec.UserID+"\", \""+ns+"\")'></i> "+item.spec.Name+" &lt;"+"<a href='mailto:"+item.spec.Email+"'>"+item.spec.Email+"</a>&gt;</span>"
           }).join(' '),
         ].join('')
       }

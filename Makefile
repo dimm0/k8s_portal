@@ -27,4 +27,4 @@ restartpod:
 
 pushconfig:
 	-kubectl delete configmap portal-config -n kube-system
-	kubectl create configmap portal-config --from-file=config.toml=config_dev.toml -n kube-system
+	kubectl create configmap portal-config --from-file=config.toml=config_prod.toml -n kube-system

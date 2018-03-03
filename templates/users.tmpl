@@ -17,7 +17,7 @@
             <td>{{.Spec.UserID}}</td>
             <td>{{.Spec.Name}}</td>
             <td>{{.Spec.IDP}}</td>
-            <td>{{.Spec.Email}}</td>
+            <td><a href="mailto:{{.Spec.Email}}">{{.Spec.Email}}</a></td>
             <td id="{{.Name}}_role">{{.Spec.Role}}</td>
             <td id="{{.Name}}_modif">
               {{if eq .Spec.Role "guest"}}
