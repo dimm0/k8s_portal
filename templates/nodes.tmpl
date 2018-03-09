@@ -10,6 +10,9 @@
                 {{.Name}}
                 <a class="btn btn-outline-primary btn-sm" href="//grafana.nautilus.optiputer.net/dashboard/db/nodes?var-server={{$instance}}:9100">Monitor</a>
                 <a class="btn btn-outline-primary btn-sm" href="//grafana.nautilus.optiputer.net/dashboard/db/node-pods?var-server={{$instance}}">Monitor Pods</a>
+                {{if isGPU .Status.Capacity}}
+                  <a class="btn btn-outline-primary btn-sm" href="//grafana.nautilus.optiputer.net/dashboard/db/cuda-gpu?var-node={{$instance}}:9114">Monitor GPU</a>
+                {{end}}
               </h4>
               {{range .Status.Conditions}}
                 <span class="cond">{{.Type}}: {{.Status}}</span>

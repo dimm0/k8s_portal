@@ -257,6 +257,10 @@ func NodesHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			return ips[0].String()
 		},
+		"isGPU": func(res v1.ResourceList) bool {
+			gpus := res["nvidia.com/gpu"]
+			return !gpus.IsZero()
+		},
 	}).ParseFiles("templates/layout.tmpl", "templates/nodes.tmpl")
 	if err != nil {
 		w.Write([]byte(err.Error()))
