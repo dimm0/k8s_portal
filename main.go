@@ -11,7 +11,6 @@ import (
 
 	nautilusapi "github.com/dimm0/k8s_portal/pkg/apis/optiputer.net/v1alpha1"
 
-	"k8s.io/api/core/v1"
 	"k8s.io/api/extensions/v1beta1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -178,7 +177,6 @@ func SetupSecurity() error {
 			Spec: v1beta1.PodSecurityPolicySpec{
 				Privileged:               false,
 				AllowPrivilegeEscalation: &f,
-				RequiredDropCapabilities: []v1.Capability{"ALL"},
 				Volumes: []v1beta1.FSType{
 					v1beta1.ConfigMap,
 					v1beta1.EmptyDir,
