@@ -213,7 +213,9 @@ func NamespacesHandler(w http.ResponseWriter, r *http.Request) {
 
 	stVars := NamespacesTemplateVars{Pods: podsList.Items, Namespaces: nss, Namespace: ns, IndexTemplateVars: buildIndexTemplateVars(session, w, r)}
 
-	t, err := template.New("layout.tmpl").ParseFiles("templates/layout.tmpl", "templates/namespaces.tmpl")
+	t, err := template.New("layout.tmpl").Funcs(template.FuncMap{
+		"hostToIp": hostToIp,
+	}).ParseFiles("templates/layout.tmpl", "templates/namespaces.tmpl")
 	if err != nil {
 		session.AddFlash(fmt.Sprintf("Unexpected error: %s", err.Error()))
 		session.Save(r, w)
@@ -227,6 +229,14 @@ func NamespacesHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+}
+
+func hostToIp(host string) string {
+	ips, err := net.LookupIP(host)
+	if err != nil {
+		return host
+	}
+	return ips[0].String()
 }
 
 func NodesHandler(w http.ResponseWriter, r *http.Request) {
@@ -250,13 +260,7 @@ func NodesHandler(w http.ResponseWriter, r *http.Request) {
 	stVars := NodesTemplateVars{Nodes: nodesList.Items, IndexTemplateVars: buildIndexTemplateVars(session, w, r)}
 
 	t, err := template.New("layout.tmpl").Funcs(template.FuncMap{
-		"hostToIp": func(host string) string {
-			ips, err := net.LookupIP(host)
-			if err != nil {
-				return host
-			}
-			return ips[0].String()
-		},
+		"hostToIp": hostToIp,
 		"isGPU": func(res v1.ResourceList) bool {
 			gpus := res["nvidia.com/gpu"]
 			return !gpus.IsZero()

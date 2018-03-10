@@ -24,11 +24,15 @@
           </thead>
           <tbody>
             {{range .Pods}}
+            {{$instance:= hostToIp .Spec.NodeName}}
             <tr>
               <td>{{.GetName}}</td>
               <td><span class="tt" {{if .Status.Message}}title="{{.Status.Message}}"{{end}}>{{.Status.Phase}}{{if .Status.Reason}} (!){{end}}</span></td>
               <td>{{.Spec.NodeName}}</td>
-              <td><a class="btn btn-outline-primary" href="//grafana.{{$cluster}}/dashboard/db/pods?var-namespace={{$ns}}&amp;var-pod={{.GetName}}">Monitor</a></td>
+              <td>
+                <a class="btn btn-outline-primary" href="//grafana.{{$cluster}}/dashboard/db/pods?var-namespace={{$ns}}&amp;var-pod={{.GetName}}">Monitor POD</a>
+                <a class="btn btn-outline-primary" href="//grafana.{{$cluster}}/dashboard/db/nodes?var-server={{$instance}}:9100">Monitor Node</a>
+              </td>
             </tr>
             {{end}}
           </tbody>

@@ -8,10 +8,10 @@
             <div>
               <h4>
                 {{.Name}}
-                <a class="btn btn-outline-primary btn-sm" href="//grafana.nautilus.optiputer.net/dashboard/db/nodes?var-server={{$instance}}:9100">Monitor</a>
-                <a class="btn btn-outline-primary btn-sm" href="//grafana.nautilus.optiputer.net/dashboard/db/node-pods?var-server={{$instance}}">Monitor Pods</a>
+                <a class="btn btn-outline-primary btn-sm" href="//grafana.{{$cluster}}/dashboard/db/nodes?var-server={{$instance}}:9100">Monitor</a>
+                <a class="btn btn-outline-primary btn-sm" href="//grafana.{{$cluster}}/dashboard/db/node-pods?var-server={{$instance}}">Monitor Pods</a>
                 {{if isGPU .Status.Capacity}}
-                  <a class="btn btn-outline-primary btn-sm" href="//grafana.nautilus.optiputer.net/dashboard/db/cuda-gpu?var-node={{$instance}}:9114">Monitor GPU</a>
+                  <a class="btn btn-outline-primary btn-sm" href="//grafana.{{$cluster}}/dashboard/db/cuda-gpu?var-node={{$instance}}:9114">Monitor GPU</a>
                 {{end}}
               </h4>
               {{range .Status.Conditions}}
@@ -36,7 +36,7 @@
     var intervalID = setInterval(updateTop, 5000);
 
     function updateTop() {
-      nanoajax.ajax({url:'//prometheus.nautilus.optiputer.net/api/v1/query?query=node_load1', responseType: 'json'}, function (code, responseText) {
+      nanoajax.ajax({url:'//prometheus.{{$cluster}}/api/v1/query?query=node_load1', responseType: 'json'}, function (code, responseText) {
         if(responseText.status != "success") {
           console.debug("Error querying: "+responseText.status);
         } else {
@@ -47,7 +47,7 @@
         }
       })
 
-      nanoajax.ajax({url:'//prometheus.nautilus.optiputer.net/api/v1/query?query=node_load5', responseType: 'json'}, function (code, responseText) {
+      nanoajax.ajax({url:'//prometheus.{{$cluster}}/api/v1/query?query=node_load5', responseType: 'json'}, function (code, responseText) {
         if(responseText.status != "success") {
           console.debug("Error querying: "+responseText.status);
         } else {
@@ -58,7 +58,7 @@
         }
       })
 
-      nanoajax.ajax({url:'//prometheus.nautilus.optiputer.net/api/v1/query?query=node_load15', responseType: 'json'}, function (code, responseText) {
+      nanoajax.ajax({url:'//prometheus.{{$cluster}}/api/v1/query?query=node_load15', responseType: 'json'}, function (code, responseText) {
         if(responseText.status != "success") {
           console.debug("Error querying: "+responseText.status);
         } else {
