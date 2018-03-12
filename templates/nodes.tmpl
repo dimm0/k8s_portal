@@ -30,6 +30,7 @@
 {{end}}
 
 {{define "page_js"}}
+  {{$cluster:= .ClusterUrl}}
   <script src="https://cdnjs.cloudflare.com/ajax/libs/nanoajax/0.4.3/nanoajax.min.js" integrity="sha256-LD4kEAL733s6q/X0SmbSsdteoGaOe4ny63lfVruo1ng=" crossorigin="anonymous"></script>
   <script type="text/javascript">
     updateTop();
