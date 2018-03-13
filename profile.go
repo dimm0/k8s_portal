@@ -29,6 +29,7 @@ type ProfileTemplateVars struct {
 
 type NamespaceUserBinding struct {
 	Namespace           v1.Namespace
+	ConfigMap           v1.ConfigMap
 	RoleBindings        []rbacv1.RoleBinding
 	ClusterRoleBindings []rbacv1.ClusterRoleBinding
 }
@@ -299,6 +300,9 @@ func ProfileHandler(w http.ResponseWriter, r *http.Request) {
 
 	for _, ns := range namespacesList.Items {
 		nsBind := NamespaceUserBinding{Namespace: ns, RoleBindings: []rbacv1.RoleBinding{}}
+		if metaConfig, err := clientset.CoreV1().ConfigMaps(ns.GetName()).Get("meta", metav1.GetOptions{}); err == nil {
+			nsBind.ConfigMap = *metaConfig
+		}
 		if nsBind.RoleBindings, err = getUserNamespaceBindings(user.Spec.UserID, ns, userclientset); err == nil {
 			nsList = append(nsList, nsBind)
 		}

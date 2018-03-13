@@ -1,6 +1,7 @@
 FROM golang:1.9-alpine3.6
 ADD k8s_portal /
-RUN apk update && apk add git bash vim openssl ca-certificates && go get github.com/dimm0/k8s_portal && rm -rf /media && ln -s /go/src/github.com/dimm0/k8s_portal/media /media && ln -s /go/src/github.com/dimm0/k8s_portal/templates /templates
+RUN apk update && apk add git bash vim openssl ca-certificates && go get github.com/dimm0/k8s_portal || true && rm -rf /media && ln -s /go/src/github.com/dimm0/k8s_portal/media /media && ln -s /go/src/github.com/dimm0/k8s_portal/templates /templates && \
+  go get -u github.com/golang/dep/cmd/dep && cd /go/src/github.com/dimm0/k8s_portal && dep ensure && ./codegen.sh
 RUN mkdir /sessions
 CMD ["sleep", "360000000"]
 EXPOSE 80

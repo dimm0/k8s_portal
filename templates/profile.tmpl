@@ -8,6 +8,7 @@
         <tr>
           <th>Name</th>
           <th>Status</th>
+          <th>Metadata</th>
           <th></th>
         </tr>
       </thead>
@@ -22,6 +23,7 @@
             {{end}}
           </td>
           <td></td>
+          <td></td>
           {{else}}
           <td><a href="JavaScript:viewns('{{$value.Namespace.GetName}}')">{{$value.Namespace.GetName}}</a></td>
           <td>
@@ -29,6 +31,17 @@
             <span class="roleref">{{.RoleRef.Name}}</span>
             {{end}}
           </td>
+          <td>
+	  	{{if and ( and (ne $value.Namespace.GetName "default") (ne $value.Namespace.GetName "kube-system")) (ne $value.Namespace.GetName "kube-public")}}
+			{{if $value.ConfigMap.Data}}
+				<span><b>PI: </b><a href="#" class="edit" data-type="text" data-pk="1" data-url="/edit_ns_meta" data-title="Enter PI">{{index $value.ConfigMap.Data "PI"}}</a></span>
+				<span><b>Grant: </b><a href="#" class="edit" data-type="text" data-pk="1" data-url="/edit_ns_meta" data-title="Enter Grant">{{index $value.ConfigMap.Data "Grant"}}</a></span>
+			{{else}}
+				<span class="ialert"><b>PI: </b><a href="#" class="edit" data-type="text" data-pk="1" data-url="/edit_ns_meta" data-title="Enter PI">Not defined</a></span>
+				<span class="ialert"><b>Grant: </b><a href="#" class="edit" data-type="text" data-pk="1" data-url="/edit_ns_meta" data-title="Enter Grant">Not defined</a></span>
+			{{end}}
+		{{end}}
+	  </td>
           <td>
             <button type="button" class="btn btn-danger" title="Delete namespace" onclick="delns('{{$value.Namespace.GetName}}')"><i class="fa fa-trash" aria-hidden="true"></i></button>
             <button type="button" class="btn btn-success" title="Add user" onclick="adduser('{{$value.Namespace.GetName}}')"><i class="fa fa-address-book-o" aria-hidden="true"></i></button>
@@ -43,8 +56,23 @@
 {{end}}
 
 {{define "page_js"}}
+<script src="//cdnjs.cloudflare.com/ajax/libs/x-editable/1.5.0/bootstrap3-editable/js/bootstrap-editable.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-autocomplete/1.0.7/jquery.auto-complete.min.js" integrity="sha256-zs4Ql/EnwyWVY+mTbGS2WIMLdfYGtQOhkeUtOawKZVY=" crossorigin="anonymous"></script>
 <script language="JavaScript">
+$.fn.editable.defaults.mode = 'inline';
+$.fn.editableform.buttons =
+  '<button type="submit" class="btn btn-primary btn-sm editable-submit">'+
+    '<i class="fa fa-fw fa-check"></i>'+
+  '</button>'+
+  '<button type="button" class="btn btn-default btn-sm editable-cancel">'+
+    '<i class="fa fa-fw fa-times"></i>'+
+  '</button>';
+
+
+$(document).ready(function() {
+    $('.edit').editable();
+});
+
 function mkns() {
   vex.dialog.prompt({
     message: 'Namespace name',
@@ -150,6 +178,7 @@ function deluser(user, ns) {
 {{define "page_css"}}
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jquery-autocomplete/1.0.7/jquery.auto-complete.min.css" integrity="sha256-MFTTStFZmJT7CqZBPyRVaJtI2P9ovNBbwmr0/KErfEc=" crossorigin="anonymous" />
+<link href="//cdnjs.cloudflare.com/ajax/libs/x-editable/1.5.0/bootstrap3-editable/css/bootstrap-editable.css" rel="stylesheet"/>
 <style>
 span.roleref {
   background: white;
