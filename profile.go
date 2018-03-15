@@ -9,7 +9,7 @@ import (
 	"time"
 
 	nautilusapi "github.com/dimm0/k8s_portal/pkg/apis/optiputer.net/v1alpha1"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextcs "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
@@ -326,6 +326,82 @@ func ProfileHandler(w http.ResponseWriter, r *http.Request) {
 		err = t.ExecuteTemplate(w, "layout.tmpl", nsVars)
 		if err != nil {
 			w.Write([]byte(err.Error()))
+		}
+	}
+}
+
+func NsMetaHandler(w http.ResponseWriter, r *http.Request) {
+	session, err := filestore.Get(r, "prp-session")
+	if err != nil {
+		log.Printf("Error getting the session: %s", err.Error())
+	}
+
+	if session.IsNew || session.Values["userid"] == nil {
+		http.Redirect(w, r, "/", http.StatusFound)
+		return
+	}
+
+	user, err := GetUser(session.Values["userid"].(string))
+	if err != nil {
+		session.AddFlash(fmt.Sprintf("Unexpected error: %s", err.Error()))
+		session.Save(r, w)
+		http.Redirect(w, r, "/", http.StatusFound)
+		return
+	}
+
+	userclientset, err := user.GetUserClientset()
+	if err != nil {
+		session.AddFlash(fmt.Sprintf("Unexpected error: %s", err.Error()))
+		session.Save(r, w)
+		http.Redirect(w, r, "/", http.StatusFound)
+		return
+	}
+
+	if strings.ToLower(user.Spec.Role) != "admin" {
+		session.AddFlash("Only admins can manage namespaces")
+		session.Save(r, w)
+		http.Redirect(w, r, "/", http.StatusFound)
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(err.Error()))
+		return
+	}
+
+	updateNsName := r.PostFormValue("pk")
+	if updateNsName != "" {
+		if confMap, err := userclientset.Core().ConfigMaps(updateNsName).Get("meta", metav1.GetOptions{}); err == nil {
+			switch r.PostFormValue("name") {
+			case "PI": 
+				confMap.Data["PI"] = r.PostFormValue("value")
+			case "Grant":
+				confMap.Data["Grant"] = r.PostFormValue("value")
+			}
+			if _, err := userclientset.Core().ConfigMaps(updateNsName).Update(confMap); err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				w.Write([]byte(err.Error()))
+				return
+			}
+		} else {
+			dataMap := map[string]string{"PI":"","Grant":""}
+			switch r.PostFormValue("name") {
+			case "PI": 
+				dataMap["PI"] = r.PostFormValue("value")
+			case "Grant":
+				dataMap["Grant"] = r.PostFormValue("value")
+			}
+			if _, err := userclientset.Core().ConfigMaps(updateNsName).Create(&v1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "meta",
+				},
+				Data: dataMap,
+			}); err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				w.Write([]byte(err.Error()))
+				return
+			}
 		}
 	}
 }

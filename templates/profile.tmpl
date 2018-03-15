@@ -33,12 +33,12 @@
           </td>
           <td>
 	  	{{if and ( and (ne $value.Namespace.GetName "default") (ne $value.Namespace.GetName "kube-system")) (ne $value.Namespace.GetName "kube-public")}}
+				<span><b>PI: </b><a href="#" class="edit" data-name="PI" data-type="text" data-pk="{{$value.Namespace.GetName}}" data-url="/nsMeta" data-title="Enter PI">{{index $value.ConfigMap.Data "PI"}}</a></span>
+				<span><b>Grant: </b><a href="#" class="edit" data-name="Grant" data-type="text" data-pk="{{$value.Namespace.GetName}}" data-url="/nsMeta" data-title="Enter Grant">{{index $value.ConfigMap.Data "Grant"}}</a></span>
 			{{if $value.ConfigMap.Data}}
-				<span><b>PI: </b><a href="#" class="edit" data-type="text" data-pk="1" data-url="/edit_ns_meta" data-title="Enter PI">{{index $value.ConfigMap.Data "PI"}}</a></span>
-				<span><b>Grant: </b><a href="#" class="edit" data-type="text" data-pk="1" data-url="/edit_ns_meta" data-title="Enter Grant">{{index $value.ConfigMap.Data "Grant"}}</a></span>
 			{{else}}
-				<span class="ialert"><b>PI: </b><a href="#" class="edit" data-type="text" data-pk="1" data-url="/edit_ns_meta" data-title="Enter PI">Not defined</a></span>
-				<span class="ialert"><b>Grant: </b><a href="#" class="edit" data-type="text" data-pk="1" data-url="/edit_ns_meta" data-title="Enter Grant">Not defined</a></span>
+				<!--span class="ialert"><b>PI: </b><a href="#" class="edit" data-name="PI" data-type="text" data-pk="{{$value.Namespace.GetName}}" data-url="/nsMeta" data-title="Enter PI">Not defined</a></span>
+				<span class="ialert"><b>Grant: </b><a href="#" class="edit" data-name="Grant" data-type="text" data-pk="{{$value.Namespace.GetName}}" data-url="/nsMeta" data-title="Enter Grant">Not defined</a></span-->
 			{{end}}
 		{{end}}
 	  </td>
@@ -185,6 +185,10 @@ span.roleref {
   padding: 3px;
   border-radius: 3px;
   font-size: 0.6em;
+}
+
+span.ialert {
+  color: red;
 }
 </style>
 {{end}}
