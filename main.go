@@ -119,6 +119,7 @@ func main() {
 	http.HandleFunc("/namespaces", NamespacesHandler)
 	http.HandleFunc("/nodes", NodesHandler)
 	http.HandleFunc("/profile", ProfileHandler)
+	http.HandleFunc("/nsMeta", NsMetaHandler)
 
 	http.HandleFunc("/authConfig", func(w http.ResponseWriter, r *http.Request) {
 		statesLock.Lock()
