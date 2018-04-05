@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -14,7 +15,8 @@ import (
 
 type UsersTemplateVars struct {
 	IndexTemplateVars
-	Users []nautilusapi.PRPUser
+	Users     []nautilusapi.PRPUser
+	MailtoAll string
 }
 
 type AutoCompleteItem struct {
@@ -142,14 +144,20 @@ func UsersHandler(w http.ResponseWriter, r *http.Request) {
 		} else {
 
 			users := []nautilusapi.PRPUser{}
+			var mailAllBuf bytes.Buffer
+
 			if curusers, err := crdclient.List(meta_v1.ListOptions{}); err == nil {
 				users = curusers.Items
+
+				for _, user := range users {
+					mailAllBuf.WriteString(user.Spec.Name + "<" + user.Spec.Email + ">,")
+				}
 			} else {
 				session.AddFlash(fmt.Sprintf("Unexpected error: %s", err.Error()))
 				session.Save(r, w)
 			}
 
-			vars := UsersTemplateVars{buildIndexTemplateVars(session, w, r), users}
+			vars := UsersTemplateVars{buildIndexTemplateVars(session, w, r), users, mailAllBuf.String()}
 
 			err = t.Execute(w, vars)
 			if err != nil {
