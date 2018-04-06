@@ -3,29 +3,46 @@
   <div class="container">
       <div class="jumbotron">
         <p class="lead">Cluster nodes:</p>
-          {{range .Nodes}}
-            {{$instance:= hostToIp .Name}}
-            <div>
-              <h4>
-                {{.Name}}
-                <a class="btn btn-outline-primary btn-sm" href="//grafana.{{$cluster}}/dashboard/db/nodes?var-server={{$instance}}:9100">Monitor</a>
-                <a class="btn btn-outline-primary btn-sm" href="//grafana.{{$cluster}}/dashboard/db/node-pods?var-server={{$instance}}">Monitor Pods</a>
-                {{if isGPU .Status.Capacity}}
-                  <a class="btn btn-outline-primary btn-sm" href="//grafana.{{$cluster}}/dashboard/db/cuda-gpu?var-node={{$instance}}:9114">Monitor GPU</a>
-                {{end}}
-              </h4>
-              {{range .Status.Conditions}}
-                <span class="cond">{{.Type}}: {{.Status}}</span>
+        <table class="table table-striped">
+            <thead>
+              <tr>
+                <th>Node</th>
+                <th>Net</th>
+                <th>Kernel</th>
+                <th>Docker</th>
+              </tr>
+            </thead>
+            <tbody>
+              {{range .Nodes}}
+                {{$instance:= hostToIp .Name}}
+                <tr>
+                  <td>
+                      <h3>
+                        {{.Name}}
+                      </h3>
+                      {{range .Status.Conditions}}
+                        <span class="cond">{{.Type}}: {{.Status}}</span>
+                      {{end}}
+                      <p>
+                        Load:
+                        <span id="{{$instance}}:9100_1"></span>
+                        <span id="{{$instance}}:9100_5"></span>
+                        <span id="{{$instance}}:9100_15"></span>
+                        <a class="btn btn-outline-primary btn-sm" href="//grafana.{{$cluster}}/dashboard/db/nodes?var-server={{$instance}}:9100">Monitor</a>
+                        <a class="btn btn-outline-primary btn-sm" href="//grafana.{{$cluster}}/dashboard/db/node-pods?var-server={{$instance}}">Monitor Pods</a>
+                        {{if isGPU .Status.Capacity}}
+                          <a class="btn btn-outline-primary btn-sm" href="//grafana.{{$cluster}}/dashboard/db/cuda-gpu?var-node={{$instance}}:9114">Monitor GPU</a>
+                        {{end}}
+                      </p>
+                  </td>
+                  <td>{{index .Labels "nw"}}</td>
+                  <td>{{.Status.NodeInfo.KernelVersion}}</td>
+                  <td>{{.Status.NodeInfo.ContainerRuntimeVersion}}</td>
+                </tr>
               {{end}}
-              <p>
-                Load:
-                <span id="{{$instance}}:9100_1"></span>
-                <span id="{{$instance}}:9100_5"></span>
-                <span id="{{$instance}}:9100_15"></span>
-              </p>
-            </div>
-          {{end}}
-    </div>
+            </tbody>
+        </table>
+      </div>
   </div>
 {{end}}
 
