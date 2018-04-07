@@ -1,5 +1,6 @@
 {{define "body"}}
   {{$cluster:= .ClusterUrl}}
+  {{$nodeConfig:= .NodeConfig}}
   <div class="container">
       <div class="jumbotron">
         <p class="lead">Cluster nodes:</p>
@@ -10,6 +11,7 @@
                 <th>Net</th>
                 <th>Kernel</th>
                 <th>Docker</th>
+                <th>FQ</th>
               </tr>
             </thead>
             <tbody>
@@ -38,6 +40,9 @@
                   <td>{{index .Labels "nw"}}</td>
                   <td>{{.Status.NodeInfo.KernelVersion}}</td>
                   <td>{{.Status.NodeInfo.ContainerRuntimeVersion}}</td>
+                  {{$curConfig := index $nodeConfig .Name}}
+
+                  <td>{{$curConfig.FQ}}</td>
                 </tr>
               {{end}}
             </tbody>

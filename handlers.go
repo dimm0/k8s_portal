@@ -1,8 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"html/template"
+	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -54,9 +56,14 @@ type NamespacesTemplateVars struct {
 	Namespaces []v1.Namespace
 }
 
+type NodeConfig struct {
+	FQ string `json:"fq"`
+}
+
 type NodesTemplateVars struct {
 	IndexTemplateVars
-	Nodes []v1.Node
+	Nodes      []v1.Node
+	NodeConfig map[string]NodeConfig
 }
 
 func buildIndexTemplateVars(session *sessions.Session, w http.ResponseWriter, r *http.Request) IndexTemplateVars {
@@ -257,7 +264,30 @@ func NodesHandler(w http.ResponseWriter, r *http.Request) {
 
 	nodesList, _ := clientset.Core().Nodes().List(metav1.ListOptions{})
 
-	stVars := NodesTemplateVars{Nodes: nodesList.Items, IndexTemplateVars: buildIndexTemplateVars(session, w, r)}
+	var nMapMutex = &sync.Mutex{}
+	nodesConfig := make(map[string]NodeConfig)
+	var wg sync.WaitGroup
+	wg.Add(len(nodesList.Items))
+	for _, node := range nodesList.Items {
+		go func(name string) {
+			defer wg.Done()
+
+			resp, err := http.Get("http://" + name + ":10015")
+			if err == nil {
+				defer resp.Body.Close()
+				body, _ := ioutil.ReadAll(resp.Body)
+				var conf NodeConfig
+				if err := json.Unmarshal(body, &conf); err == nil {
+					nMapMutex.Lock()
+					nodesConfig[name] = conf
+					nMapMutex.Unlock()
+				}
+			}
+		}(node.Name)
+	}
+	wg.Wait()
+
+	stVars := NodesTemplateVars{Nodes: nodesList.Items, IndexTemplateVars: buildIndexTemplateVars(session, w, r), NodeConfig: nodesConfig}
 
 	t, err := template.New("layout.tmpl").Funcs(template.FuncMap{
 		"hostToIp": hostToIp,
