@@ -5,43 +5,75 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"strings"
 	"time"
 )
 
-var defaultTransport = http.DefaultTransport.(*http.Transport)
+var psDefaultTransport = http.DefaultTransport.(*http.Transport)
 
 // Create new Transport that ignores self-signed SSL
 var httpClientWithSelfSignedTLS = &http.Transport{
-	Proxy:                 defaultTransport.Proxy,
-	DialContext:           defaultTransport.DialContext,
-	MaxIdleConns:          defaultTransport.MaxIdleConns,
-	IdleConnTimeout:       defaultTransport.IdleConnTimeout,
-	ExpectContinueTimeout: defaultTransport.ExpectContinueTimeout,
-	TLSHandshakeTimeout:   defaultTransport.TLSHandshakeTimeout,
+	Proxy:                 psDefaultTransport.Proxy,
+	DialContext:           psDefaultTransport.DialContext,
+	MaxIdleConns:          psDefaultTransport.MaxIdleConns,
+	IdleConnTimeout:       psDefaultTransport.IdleConnTimeout,
+	ExpectContinueTimeout: psDefaultTransport.ExpectContinueTimeout,
+	TLSHandshakeTimeout:   psDefaultTransport.TLSHandshakeTimeout,
 	TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
 }
-var client = &http.Client{Transport: httpClientWithSelfSignedTLS}
+var psClient = &http.Client{Transport: httpClientWithSelfSignedTLS}
 
-func main() {
-	snode := "fiona.sdsu.edu"
-	dnode := "k8s-nvme-01.ultralight.org"
-	// res, _ := RunTest(snode, dnode, "throughput")
-	// fmt.Println(res)
+// Process the /tests path
+func TestsHandler(w http.ResponseWriter, r *http.Request) {
 
-	// fmt.Println("\n\n\n")
+	if r.Method != "GET" {
+		return
+	}
 
-	res, err := RunTest(snode, dnode, "trace")
-	jsonRes, _ := json.MarshalIndent(res, "", "    ")
-	fmt.Println(fmt.Printf("%s", jsonRes))
-	fmt.Println(err)
+	session, err := filestore.Get(r, "prp-session")
+	if err != nil {
+		log.Printf("Error getting the session: %s", err.Error())
+	}
+
+	if session.IsNew || session.Values["userid"] == nil {
+		http.Redirect(w, r, "/", http.StatusFound)
+		return
+	}
+
+	var src = r.URL.Query().Get("src")
+	var dst = r.URL.Query().Get("src")
+	var test = r.URL.Query().Get("test")
+
+	if src != "" && dst != "" && test != "" {
+		if res, err := RunTest(src, dst, test); err != nil {
+			if jsonRes, err := json.MarshalIndent(res, "", "    "); err != nil {
+				w.Write(jsonRes)
+			} else {
+				http.Error(w, "Failed to retrieve results: "+err.Error(), http.StatusInternalServerError)
+			}
+		}
+	} else {
+		t, err := template.New("layout.tmpl").ParseFiles("templates/layout.tmpl", "templates/tests.tmpl")
+		if err != nil {
+			w.Write([]byte(err.Error()))
+		} else {
+			nsVars := map[string]string{}
+			err = t.ExecuteTemplate(w, "layout.tmpl", nsVars)
+			if err != nil {
+				w.Write([]byte(err.Error()))
+			}
+		}
+	}
+
 }
 
 func RunTest(snode string, dnode string, testType string) (map[string]interface{}, error) {
 	pschedUrl := fmt.Sprintf("https://%s:8443/pscheduler/tasks", snode)
-	if resp, err := client.Get(pschedUrl); err == nil && resp.StatusCode != 200 {
+	if resp, err := psClient.Get(pschedUrl); err == nil && resp.StatusCode != 200 {
 		pschedUrl = fmt.Sprintf("https://%s/pscheduler/tasks", snode)
 	} else {
 		snode += ":8443"
@@ -70,7 +102,7 @@ func RunTest(snode string, dnode string, testType string) (map[string]interface{
 	var result Result = Result{ResultMerged: map[string]interface{}{}}
 
 	if buf, err := json.Marshal(&task); err == nil {
-		if resp, err := client.Post(pschedUrl, "application/json", bytes.NewBuffer(buf)); err == nil {
+		if resp, err := psClient.Post(pschedUrl, "application/json", bytes.NewBuffer(buf)); err == nil {
 			defer resp.Body.Close()
 			body, _ := ioutil.ReadAll(resp.Body)
 			resUrl := fmt.Sprintf("%s/runs/first?wait=30", body)
@@ -81,7 +113,7 @@ func RunTest(snode string, dnode string, testType string) (map[string]interface{
 			state := "pending"
 			for err == nil && isExecuting(state) {
 				// fmt.Printf("Querying url: %s\n", resUrl)
-				if resp, err := client.Get(resUrl); err == nil {
+				if resp, err := psClient.Get(resUrl); err == nil {
 					body, _ := ioutil.ReadAll(resp.Body)
 					if merr := json.Unmarshal(body, &result); merr == nil {
 						state = result.State

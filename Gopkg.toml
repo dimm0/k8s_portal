@@ -1,32 +1,32 @@
 required = ["k8s.io/code-generator/cmd/client-gen"]
 
-[[constraint]]
+[[override]]
   name = "github.com/stretchr/testify"
 
-[[constraint]]
+[[override]]
   name = "k8s.io/kubernetes"
-  version = "v1.9.3"
+  version = "v1.10.1"
 
 [[constraint]]
   name = "k8s.io/api"
-  version = "kubernetes-1.9.3"
+  version = "kubernetes-1.10.1"
 
 [[constraint]]
   name = "k8s.io/apiextensions-apiserver"
-  version = "kubernetes-1.9.3"
+  version = "kubernetes-1.10.1"
 
 [[constraint]]
   name = "k8s.io/apimachinery"
-  version = "kubernetes-1.9.3"
+  version = "kubernetes-1.10.1"
 
-[[constraint]]
+[[override]]
   name = "k8s.io/apiserver"
-  version = "kubernetes-1.9.3"
+  version = "kubernetes-1.10.1"
 
 [[constraint]]
   name = "k8s.io/client-go"
-  version = "v6.0.0"
+  version = "v7.0.0"
 
 [[constraint]]
 name = "k8s.io/code-generator"
-version = "kubernetes-1.9.3"
+version = "kubernetes-1.10.1"

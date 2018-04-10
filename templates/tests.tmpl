@@ -1,0 +1,34 @@
+{{define "body"}}
+<div class="container">
+  <div class="jumbotron">
+    <input id="src"></input>
+    <input id="dst"></input>
+    <input type="button" id="throughput" value="Throughput">
+    <input type="button" id="trace" value="Traceroute">
+    <div id="result"></div>
+  </div>
+</div>
+{{end}}
+
+{{define "page_js"}}
+<script
+  src="https://code.jquery.com/jquery-3.3.1.slim.min.js"
+  integrity="sha256-3edrmyuQ0w65f8gfBsqowzjJe2iM6n0nKciPUp8y+7E="
+  crossorigin="anonymous"></script>
+
+<script type="text/javascript">
+$("#throughput").click(function(){
+    $.ajax({url: "/tests?src="+$("#src").val()+"&dst="+$("#dst").val()+"&test=throughput", success: function(result){
+        $("#result").html(result);
+    }});
+});
+$("#trace").click(function(){
+    $.ajax({url: "/tests?src="+$("#src").val()+"&dst="+$("#dst").val()+"&test=trace", success: function(result){
+        $("#result").html(result);
+    }});
+});
+</script>
+{{end}}
+
+{{define "page_css"}}
+{{end}}
