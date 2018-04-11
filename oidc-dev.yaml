@@ -12,7 +12,7 @@ spec:
       labels:
         k8s-app: nautilus-portal-dev
     spec:
-      serviceAccountName: nautilus-portal-dev
+      serviceAccountName: nautilus-portal
       imagePullSecrets:
         - name: gcr-json-key
       containers:
@@ -51,7 +51,7 @@ metadata:
     kubernetes.io/ingress.class: traefik
 spec:
   rules:
-  - host: nautilus-dev.optiputer.net
+  - host: dev.nautilus.optiputer.net
     http:
       paths:
       - path: /
