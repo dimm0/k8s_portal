@@ -5,7 +5,7 @@
     <input id="dst"></input>
     <input type="button" id="throughput" value="Throughput">
     <input type="button" id="trace" value="Traceroute">
-    <div id="result"></div>
+    <pre id="result"></pre>
   </div>
 </div>
 {{end}}
@@ -15,7 +15,7 @@
   src="https://code.jquery.com/jquery-3.3.1.min.js"
   integrity="sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8="
   crossorigin="anonymous"></script>
-  
+
 <script type="text/javascript">
 $("#throughput").click(function(){
     $.ajax({url: "/tests?src="+$("#src").val()+"&dst="+$("#dst").val()+"&test=throughput", success: function(result){

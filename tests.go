@@ -48,13 +48,15 @@ func TestsHandler(w http.ResponseWriter, r *http.Request) {
 	var dst = r.URL.Query().Get("src")
 	var test = r.URL.Query().Get("test")
 
-	if src != "" && dst != "" && test != "" {
-		if res, err := RunTest(src, dst, test); err != nil {
-			if jsonRes, err := json.MarshalIndent(res, "", "    "); err != nil {
+	if test != "" {
+		if res, err := RunTest(src, dst, test); err == nil {
+			if jsonRes, err := json.MarshalIndent(res, "", "    "); err == nil {
 				w.Write(jsonRes)
 			} else {
 				http.Error(w, "Failed to retrieve results: "+err.Error(), http.StatusInternalServerError)
 			}
+		} else {
+			http.Error(w, "Failed to retrieve results: "+err.Error(), http.StatusInternalServerError)
 		}
 	} else {
 		t, err := template.New("layout.tmpl").ParseFiles("templates/layout.tmpl", "templates/tests.tmpl")
@@ -99,13 +101,13 @@ func RunTest(snode string, dnode string, testType string) (map[string]interface{
 
 	fmt.Printf("Measuring %s %s to %s\n", testType, snode, dnode)
 
-	var result Result = Result{ResultMerged: map[string]interface{}{}}
+	var result Result
 
 	if buf, err := json.Marshal(&task); err == nil {
 		if resp, err := psClient.Post(pschedUrl, "application/json", bytes.NewBuffer(buf)); err == nil {
 			defer resp.Body.Close()
 			body, _ := ioutil.ReadAll(resp.Body)
-			resUrl := fmt.Sprintf("%s/runs/first?wait=30", body)
+			resUrl := fmt.Sprintf("%s/runs/first?wait=10", body)
 			resUrl = strings.Replace(resUrl, "\"", "", -1)
 			resUrl = strings.Replace(resUrl, "\n", "", -1)
 
@@ -130,7 +132,7 @@ func RunTest(snode string, dnode string, testType string) (map[string]interface{
 			}
 
 			if result.Errors != "" {
-				return result.ResultMerged, fmt.Errorf("result.Errors")
+				return result.ResultMerged, fmt.Errorf(result.Errors)
 			} else if result.State == "finished" {
 				return result.ResultMerged, nil
 			} else {
