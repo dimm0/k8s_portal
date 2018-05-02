@@ -7,7 +7,6 @@
       <thead>
         <tr>
           <th>Name</th>
-          <th>Status</th>
           <th>Metadata</th>
           <th></th>
         </tr>
@@ -15,38 +14,17 @@
       <tbody>
         {{range $key, $value := .NamespaceBindings}}
         <tr>
-          {{if eq $value.Namespace.GetName ""}}
-          <td><i>Cluster-wide</i></td>
-          <td>
-            {{range $value.ClusterRoleBindings}}
-            <span class="roleref">{{.RoleRef.Name}}</span>
-            {{end}}
-          </td>
-          <td></td>
-          <td></td>
-          {{else}}
           <td><a href="JavaScript:viewns('{{$value.Namespace.GetName}}')">{{$value.Namespace.GetName}}</a></td>
           <td>
-            {{range $value.RoleBindings}}
-            <span class="roleref">{{.RoleRef.Name}}</span>
+            {{if and ( and (ne $value.Namespace.GetName "default") (ne $value.Namespace.GetName "kube-system")) (ne $value.Namespace.GetName "kube-public")}}
+                    <span><b>PI: </b><a href="#" class="edit" data-name="PI" data-type="text" data-pk="{{$value.Namespace.GetName}}" data-url="/nsMeta" data-title="Enter PI">{{index $value.ConfigMap.Data "PI"}}</a></span>
+                    <span><b>Grant: </b><a href="#" class="edit" data-name="Grant" data-type="text" data-pk="{{$value.Namespace.GetName}}" data-url="/nsMeta" data-title="Enter Grant">{{index $value.ConfigMap.Data "Grant"}}</a></span>
             {{end}}
           </td>
-          <td>
-	  	{{if and ( and (ne $value.Namespace.GetName "default") (ne $value.Namespace.GetName "kube-system")) (ne $value.Namespace.GetName "kube-public")}}
-				<span><b>PI: </b><a href="#" class="edit" data-name="PI" data-type="text" data-pk="{{$value.Namespace.GetName}}" data-url="/nsMeta" data-title="Enter PI">{{index $value.ConfigMap.Data "PI"}}</a></span>
-				<span><b>Grant: </b><a href="#" class="edit" data-name="Grant" data-type="text" data-pk="{{$value.Namespace.GetName}}" data-url="/nsMeta" data-title="Enter Grant">{{index $value.ConfigMap.Data "Grant"}}</a></span>
-			{{if $value.ConfigMap.Data}}
-			{{else}}
-				<!--span class="ialert"><b>PI: </b><a href="#" class="edit" data-name="PI" data-type="text" data-pk="{{$value.Namespace.GetName}}" data-url="/nsMeta" data-title="Enter PI">Not defined</a></span>
-				<span class="ialert"><b>Grant: </b><a href="#" class="edit" data-name="Grant" data-type="text" data-pk="{{$value.Namespace.GetName}}" data-url="/nsMeta" data-title="Enter Grant">Not defined</a></span-->
-			{{end}}
-		{{end}}
-	  </td>
           <td>
             <button type="button" class="btn btn-danger" title="Delete namespace" onclick="delns('{{$value.Namespace.GetName}}')"><i class="fa fa-trash" aria-hidden="true"></i></button>
             <button type="button" class="btn btn-success" title="Add user" onclick="adduser('{{$value.Namespace.GetName}}')"><i class="fa fa-address-book-o" aria-hidden="true"></i></button>
           </td>
-          {{end}}
         </tr>
         {{end}}
       </tbody>
@@ -158,12 +136,12 @@ function adduser(ns) {
   $('input.autosuggest').autoComplete({
     minChars: 2,
     source: function(term, suggest) {
-    	try { xhr.abort(); } catch(e){}
-	    xhr = $.getJSON('/users', { format:"json", action:"autocomplete", term: term }, function(data){ suggest(data); });
+        try { xhr.abort(); } catch(e){}
+        xhr = $.getJSON('/users', { format:"json", action:"autocomplete", term: term }, function(data){ suggest(data); });
     },
     renderItem: function (item, search) {
- 	    search = search.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-    	var re = new RegExp("(" + search.split(' ').join('|') + ")", "gi");
+        search = search.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+        var re = new RegExp("(" + search.split(' ').join('|') + ")", "gi");
       return '<div class="autocomplete-suggestion" data-val="' + item.value + '">'+ item.label.replace(re, "<b>$1</b>") + '</div>';
     }
   });

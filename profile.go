@@ -11,6 +11,7 @@ import (
 	nautilusapi "github.com/dimm0/k8s_portal/pkg/apis/optiputer.net/v1alpha1"
 	v1 "k8s.io/api/core/v1"
 
+	authv1 "k8s.io/api/authorization/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextcs "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -28,10 +29,8 @@ type ProfileTemplateVars struct {
 }
 
 type NamespaceUserBinding struct {
-	Namespace           v1.Namespace
-	ConfigMap           v1.ConfigMap
-	RoleBindings        []rbacv1.RoleBinding
-	ClusterRoleBindings []rbacv1.ClusterRoleBinding
+	Namespace v1.Namespace
+	ConfigMap v1.ConfigMap
 }
 
 func GetCrd() {
@@ -154,7 +153,7 @@ func updateClusterUserPrivileges(user *nautilusapi.PRPUser) error {
 				Kind:     "ClusterRole",
 				Name:     "nautilus-cluster-user",
 			},
-			Subjects: []rbacv1.Subject{rbacv1.Subject{
+			Subjects: []rbacv1.Subject{{
 				Kind:     "User",
 				APIGroup: "rbac.authorization.k8s.io",
 				Name:     user.Spec.UserID}},
@@ -299,20 +298,25 @@ func ProfileHandler(w http.ResponseWriter, r *http.Request) {
 	nsList := []NamespaceUserBinding{}
 
 	for _, ns := range namespacesList.Items {
-		nsBind := NamespaceUserBinding{Namespace: ns, RoleBindings: []rbacv1.RoleBinding{}}
+		nsBind := NamespaceUserBinding{Namespace: ns}
 		if metaConfig, err := clientset.CoreV1().ConfigMaps(ns.GetName()).Get("meta", metav1.GetOptions{}); err == nil {
 			nsBind.ConfigMap = *metaConfig
 		}
-		if nsBind.RoleBindings, err = getUserNamespaceBindings(user.Spec.UserID, ns, userclientset); err == nil {
-			nsList = append(nsList, nsBind)
+
+		if rev, err := userclientset.AuthorizationV1().SelfSubjectAccessReviews().Create(&authv1.SelfSubjectAccessReview{
+			Spec: authv1.SelfSubjectAccessReviewSpec{
+				ResourceAttributes: &authv1.ResourceAttributes{
+					Namespace: ns.ObjectMeta.Name,
+					Verb:      "list",
+					Group:     "",
+					Resource:  "pods",
+				},
+			},
+		}); err == nil {
+			if rev.Status.Allowed {
+				nsList = append(nsList, nsBind)
+			}
 		}
-	}
-
-	//Cluster ones
-	nsBind := NamespaceUserBinding{ClusterRoleBindings: []rbacv1.ClusterRoleBinding{}}
-
-	if nsBind.ClusterRoleBindings = getUserClusterBindings(user.Spec.UserID); len(nsBind.ClusterRoleBindings) > 0 {
-		nsList = append(nsList, nsBind)
 	}
 
 	usersList, _ := crdclient.List(metav1.ListOptions{})
@@ -374,7 +378,7 @@ func NsMetaHandler(w http.ResponseWriter, r *http.Request) {
 	if updateNsName != "" {
 		if confMap, err := userclientset.Core().ConfigMaps(updateNsName).Get("meta", metav1.GetOptions{}); err == nil {
 			switch r.PostFormValue("name") {
-			case "PI": 
+			case "PI":
 				confMap.Data["PI"] = r.PostFormValue("value")
 			case "Grant":
 				confMap.Data["Grant"] = r.PostFormValue("value")
@@ -385,9 +389,9 @@ func NsMetaHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		} else {
-			dataMap := map[string]string{"PI":"","Grant":""}
+			dataMap := map[string]string{"PI": "", "Grant": ""}
 			switch r.PostFormValue("name") {
-			case "PI": 
+			case "PI":
 				dataMap["PI"] = r.PostFormValue("value")
 			case "Grant":
 				dataMap["Grant"] = r.PostFormValue("value")
@@ -404,40 +408,6 @@ func NsMetaHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-}
-
-// Returns the rolebindings for a user and a namespace
-func getUserNamespaceBindings(userID string, ns v1.Namespace, userclientset *kubernetes.Clientset) ([]rbacv1.RoleBinding, error) {
-	ret := []rbacv1.RoleBinding{}
-	rbList, err := userclientset.Rbac().RoleBindings(ns.GetName()).List(metav1.ListOptions{})
-	if err != nil {
-		return ret, err
-	}
-
-	for _, rb := range rbList.Items {
-		for _, subj := range rb.Subjects {
-			var subjStr = subj.Name
-			if subjStr == userID {
-				ret = append(ret, rb)
-			}
-		}
-	}
-	return ret, nil
-}
-
-// Returns clusterrolebindings for a user
-func getUserClusterBindings(userID string) []rbacv1.ClusterRoleBinding {
-	ret := []rbacv1.ClusterRoleBinding{}
-	rbList, _ := clientset.Rbac().ClusterRoleBindings().List(metav1.ListOptions{})
-	for _, rb := range rbList.Items {
-		for _, subj := range rb.Subjects {
-			var subjStr = subj.Name
-			if subjStr == userID {
-				ret = append(ret, rb)
-			}
-		}
-	}
-	return ret
 }
 
 // Creates a new rolebinding
@@ -469,10 +439,10 @@ func createNsRoleBinding(nsName string, user *nautilusapi.PRPUser, userclientset
 				Name:     "psp:nautilus-user",
 			},
 			Subjects: []rbacv1.Subject{
-				rbacv1.Subject{
+				{
 					Kind: "ServiceAccount",
 					Name: "default"},
-				rbacv1.Subject{
+				{
 					Kind:     "User",
 					APIGroup: "rbac.authorization.k8s.io",
 					Name:     user.Spec.UserID},
@@ -509,7 +479,7 @@ func createNsRoleBinding(nsName string, user *nautilusapi.PRPUser, userclientset
 					Kind:     "ClusterRole",
 					Name:     "nautilus-admin",
 				},
-				Subjects: []rbacv1.Subject{rbacv1.Subject{
+				Subjects: []rbacv1.Subject{{
 					Kind:     "User",
 					APIGroup: "rbac.authorization.k8s.io",
 					Name:     user.Spec.UserID}},
@@ -551,7 +521,7 @@ func createNsRoleBinding(nsName string, user *nautilusapi.PRPUser, userclientset
 				Kind:     "ClusterRole",
 				Name:     clusterRoleName,
 			},
-			Subjects: []rbacv1.Subject{rbacv1.Subject{
+			Subjects: []rbacv1.Subject{{
 				Kind:     "User",
 				APIGroup: "rbac.authorization.k8s.io",
 				Name:     user.Spec.UserID}},
@@ -645,7 +615,7 @@ func createNsLimits(ns string) (*v1.LimitRange, error) {
 		ObjectMeta: metav1.ObjectMeta{Name: ns + "-mem"},
 		Spec: v1.LimitRangeSpec{
 			Limits: []v1.LimitRangeItem{
-				v1.LimitRangeItem{
+				{
 					Type: v1.LimitTypeContainer,
 					Default: map[v1.ResourceName]resource.Quantity{
 						v1.ResourceMemory: resource.MustParse("4Gi"),
