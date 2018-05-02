@@ -26,7 +26,7 @@
 
             {{if eq .User.Spec.Role "guest"}}
             <h3>Getting verified</h3>
-            <p>On first login you become a guest. Any admin user can promote your account to users. You can ask in Slack chat above or send email.</p>
+            <p>On first login you become a guest. Any admin user can promote your account to users. You can ask in Rocketchat chat above or send email.</p>
             {{end}}
 
             <h3>PRP Kubernetes quick start</h3>
@@ -34,8 +34,9 @@
             <li><a href="https://kubernetes.io/docs/tasks/tools/install-kubectl/">Install</a> the kubectl tool</li>
             <li>Click the "Get Config" link on top and get your config file</li>
               <li>Put the file to your &lt;home&gt;/.kube folder</li>
-              <li>Test kubectl can connect to the cluster: <code>kubectl get pods</code>. It's possible there are no pods in your namespace yet.</li>
-              <li>Run busybox container in your namespace: <code>kubectl run busybox -it --rm --image=busybox -- sh</code>. It will quit once you log out from the console.</li>
+              <li>Make sure you're promoted from guest, and have a namespace assigned to you</li>
+              <li>Test kubectl can connect to the cluster: <code>kubectl get pods -n <i>your_namespace</i></code>. It's possible there are no pods in your namespace yet.</li>
+              <li>Run busybox container in your namespace: <code>kubectl run busybox -n <i>your_namespace</i> -it --rm --image=busybox -- sh</code>. It will quit once you log out from the console.</li>
               <li><a href="https://kubernetes.io/docs/tutorials/kubernetes-basics/deploy-intro/">Learn</a> more about kubernetes.</li>
               <li><a href="https://kubernetes.io/docs/reference/kubectl/cheatsheet/">Get familiar</a> with kubectl tool.</li>
             </ol>
@@ -55,7 +56,6 @@
             <br/><br/>
             <h5>Attaching Ceph blockdevice</h5>
             <p>Use the <a href="https://github.com/dimm0/prp_k8s_config/blob/master/volume-example.yaml">volume example POD</a> definition to create your own pod with <a href="https://grafana.nautilus.optiputer.net/dashboard/db/rook-ceph">Rook block volume</a> attached.</p>
-            <p><a href="https://github.com/rook/rook/blob/master/Documentation/filesystem.md">Shared filesystem</a> is also supported.</p>
           </div>
         </div>
       </div>

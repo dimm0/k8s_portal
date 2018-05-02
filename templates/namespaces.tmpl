@@ -3,8 +3,6 @@
   {{$ns:= .Namespace}}
   <div class="container">
       <div class="jumbotron">
-        <a class="btn btn-outline-primary" href="JavaScript:req('{{$ns}}')">Request membership</a>
-
         <p class="lead">Pods running in namespace:</p>
         <select class="form-control" id="ns_sel" onchange="window.location.href='/namespaces?namespace='+this.value">
           <option value=""><i>User's default</i></option>
@@ -43,18 +41,6 @@
 
 {{define "page_js"}}
   <script src="https://unpkg.com/tippy.js/dist/tippy.min.js"></script>
-
-  <script language="JavaScript">
-  function req(ns) {
-  	vex.dialog.confirm({
-  	    message: 'Request membership in '+ns+'?',
-  	    callback: function (value) {
-  	    	if(value)
-  			     document.location.href = "?req="+ns;
-  	    }
-  	})
-  }
-  </script>
 
 {{end}}
 
