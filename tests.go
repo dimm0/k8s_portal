@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"html/template"
 	"io/ioutil"
+	"k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"log"
 	"net/http"
 	"strings"
@@ -27,6 +29,11 @@ var httpClientWithSelfSignedTLS = &http.Transport{
 }
 var psClient = &http.Client{Transport: httpClientWithSelfSignedTLS}
 
+type TestTemplateVars struct {
+	IndexTemplateVars
+	Nodes []v1.Node
+}
+
 // Process the /tests path
 func TestsHandler(w http.ResponseWriter, r *http.Request) {
 
@@ -45,7 +52,7 @@ func TestsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var src = r.URL.Query().Get("src")
-	var dst = r.URL.Query().Get("src")
+	var dst = r.URL.Query().Get("dst")
 	var test = r.URL.Query().Get("test")
 
 	if test != "" {
@@ -63,7 +70,8 @@ func TestsHandler(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			w.Write([]byte(err.Error()))
 		} else {
-			nsVars := map[string]string{}
+			nodesList, _ := clientset.Core().Nodes().List(metav1.ListOptions{})
+			nsVars := TestTemplateVars{Nodes: nodesList.Items, IndexTemplateVars: buildIndexTemplateVars(session, w, r)}
 			err = t.ExecuteTemplate(w, "layout.tmpl", nsVars)
 			if err != nil {
 				w.Write([]byte(err.Error()))
@@ -98,8 +106,6 @@ func RunTest(snode string, dnode string, testType string) (map[string]interface{
 	if testType == "trace" {
 		task.Tools = []string{"tracepath"}
 	}
-
-	fmt.Printf("Measuring %s %s to %s\n", testType, snode, dnode)
 
 	var result Result
 
