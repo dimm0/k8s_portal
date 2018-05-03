@@ -1,18 +1,18 @@
 {{define "body"}}
 <div class="container">
   <div class="jumbotron">
-    <select id="src">
+    <input size="35" list="sources" id="src" name="src" />
+    <datalist id="sources">
       {{range .Nodes}}
-        <option value="{{.Name}}">{{.Name}}</option>
+        <option value="{{.Name}}">
       {{end}}
-      <option value="k8s-chase-ci-01.calit2.optiputer.net">k8s-chase-ci-01.calit2.optiputer.net</option>
-    </select>
-    <select id="dst">
+    </datalist>
+    <input size="35" list="destinations" id="dst" name="dst" />
+    <datalist id="destinations">
       {{range .Nodes}}
-        <option value="{{.Name}}">{{.Name}}</option>
-      {{end}}    
-      <option value="dtn2-daejeon.kreonet.net">dtn2-daejeon.kreonet.net</option>
-    </select>
+        <option value="{{.Name}}">
+      {{end}}
+    </datalist>
     <input type="button" id="throughput" value="Throughput">
     <input type="button" id="trace" value="Traceroute">
     <pre id="result"></pre>
