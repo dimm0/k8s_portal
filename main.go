@@ -120,6 +120,7 @@ func main() {
 	http.HandleFunc("/nodes", NodesHandler)
 	http.HandleFunc("/profile", ProfileHandler)
 	http.HandleFunc("/nsMeta", NsMetaHandler)
+	http.HandleFunc("/tests", TestsHandler)
 
 	http.HandleFunc("/authConfig", func(w http.ResponseWriter, r *http.Request) {
 		statesLock.Lock()
