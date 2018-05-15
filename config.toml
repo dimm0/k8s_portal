@@ -8,3 +8,9 @@ cluster_name="kubernetes"
 
 session_auth_key="" # 32 byte random string
 session_enc_key="" # 32 byte random string
+
+email=""
+email_smtp=""
+email_port=465
+email_username=""
+email_password=""

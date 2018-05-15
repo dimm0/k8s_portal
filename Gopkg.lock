@@ -166,6 +166,18 @@
   revision = "0dec1b30a0215bb68605dfc568e8855066c9202d"
 
 [[projects]]
+  name = "github.com/prometheus/client_golang"
+  packages = ["api/prometheus"]
+  revision = "c5b7fccd204277076155f10851dad72b76a49317"
+  version = "v0.8.0"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/prometheus/common"
+  packages = ["model"]
+  revision = "d811d2e9bf898806ecfb6ef6296774b13ffc314c"
+
+[[projects]]
   name = "github.com/spf13/afero"
   packages = [
     ".",
@@ -503,6 +515,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "2903273f9e2f0356ee7850d77f492573db2ae5341c4eb1642d9cacb4eb3034cf"
+  inputs-digest = "d8000937e41ab23aa01df0a5256670defc7f679bc5ad33e46e2107abaf51c62d"
   solver-name = "gps-cdcl"
   solver-version = 1
