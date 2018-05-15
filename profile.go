@@ -299,10 +299,6 @@ func ProfileHandler(w http.ResponseWriter, r *http.Request) {
 
 	for _, ns := range namespacesList.Items {
 		nsBind := NamespaceUserBinding{Namespace: ns}
-		if metaConfig, err := clientset.CoreV1().ConfigMaps(ns.GetName()).Get("meta", metav1.GetOptions{}); err == nil {
-			nsBind.ConfigMap = *metaConfig
-		}
-
 		if rev, err := userclientset.AuthorizationV1().SelfSubjectAccessReviews().Create(&authv1.SelfSubjectAccessReview{
 			Spec: authv1.SelfSubjectAccessReviewSpec{
 				ResourceAttributes: &authv1.ResourceAttributes{
@@ -314,6 +310,9 @@ func ProfileHandler(w http.ResponseWriter, r *http.Request) {
 			},
 		}); err == nil {
 			if rev.Status.Allowed {
+				if metaConfig, err := clientset.CoreV1().ConfigMaps(ns.GetName()).Get("meta", metav1.GetOptions{}); err == nil {
+					nsBind.ConfigMap = *metaConfig
+				}
 				nsList = append(nsList, nsBind)
 			}
 		}

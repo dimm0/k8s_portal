@@ -165,6 +165,10 @@ func main() {
 		GetCrd()
 	}()
 
+	go func() {
+		WatchGpuPods()
+	}()
+
 	log.Fatal(http.ListenAndServe(":80", nil))
 }
 
@@ -193,7 +197,7 @@ func SetupSecurity() error {
 				HostIPC:     false,
 				HostPID:     false,
 				HostPorts: []v1beta1.HostPortRange{
-					v1beta1.HostPortRange{
+					{
 						Min: 1024,
 						Max: 65536,
 					},
@@ -224,7 +228,7 @@ func SetupSecurity() error {
 				Name: "psp:nautilus-user",
 			},
 			Rules: []rbacv1.PolicyRule{
-				rbacv1.PolicyRule{
+				{
 					APIGroups:     []string{"extensions"},
 					Verbs:         []string{"use"},
 					Resources:     []string{"podsecuritypolicies"},
@@ -243,7 +247,7 @@ func SetupSecurity() error {
 				Name: "nautilus-cluster-user",
 			},
 			Rules: []rbacv1.PolicyRule{
-				rbacv1.PolicyRule{
+				{
 					APIGroups: []string{""},
 					Verbs:     []string{"get", "list"},
 					Resources: []string{"nodes"},
@@ -261,7 +265,7 @@ func SetupSecurity() error {
 				Name: "nautilus-admin",
 			},
 			Rules: []rbacv1.PolicyRule{
-				rbacv1.PolicyRule{
+				{
 					APIGroups: []string{""},
 					Verbs:     []string{"delete"},
 					Resources: []string{"namespaces"},

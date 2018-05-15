@@ -52,7 +52,8 @@
             <p>and destroy with</p>
             <div><code>kubectl delete -f https://raw.githubusercontent.com/dimm0/prp_k8s_config/master/tensorflow-example.yaml</code></div><br/>
             This example requests 1 GPU device. You can have up to 8 per node.
-            If you request GPU devices in your POD, kubernetes will auto schedule your pod to the appropriate node. There's no need to specify the location manually.
+            If you request GPU devices in your POD, kubernetes will auto schedule your pod to the appropriate node. There's no need to specify the location manually.<br/>
+            <b><i>You should delete your PODs when your computation is done to let other users use the GPU. Consider using <a href="https://kubernetes.io/docs/concepts/workloads/controllers/jobs-run-to-completion/">Jobs</a> when possible to ensure your POD is not wasting GPU time.</i></b>
             <br/><br/>
             <h5>Attaching Ceph blockdevice</h5>
             <p>Use the <a href="https://github.com/dimm0/prp_k8s_config/blob/master/volume-example.yaml">volume example POD</a> definition to create your own pod with <a href="https://grafana.nautilus.optiputer.net/dashboard/db/rook-ceph">Rook block volume</a> attached.</p>
