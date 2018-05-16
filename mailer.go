@@ -2,13 +2,12 @@ package main
 
 import (
 	"bytes"
-	"crypto/tls"
 	"fmt"
 	"html/template"
-	"net/smtp"
 
 	"github.com/prometheus/common/model"
 	"github.com/spf13/viper"
+    "github.com/go-mail/mail"
 )
 
 type MailRequest struct {
@@ -17,10 +16,6 @@ type MailRequest struct {
 	subject string
 	body    string
 }
-
-const (
-	MIME = "MIME-version: 1.0;\nContent-Type: text/html; charset=\"UTF-8\";\n\n"
-)
 
 func NewMailRequest(to []string, subject string) *MailRequest {
 	return &MailRequest{
@@ -50,53 +45,13 @@ func (r *MailRequest) parseTemplate(fileName string, data interface{}) error {
 }
 
 func (r *MailRequest) sendMail() error {
-	body := "To: " + r.to[0] + "\r\nSubject: " + r.subject + "\r\n" + MIME + "\r\n" + r.body
+    m := mail.NewMessage()
+    m.SetHeader("From", viper.GetString("email"))
+    m.SetHeader("To", r.to...)
+    m.SetHeader("Subject", r.subject)
+    m.SetBody("text/html", r.body)
 
-	tlsconfig := &tls.Config{
-		ServerName: viper.GetString("email_smtp"),
-	}
+    d := mail.NewDialer(viper.GetString("email_smtp"), viper.GetInt("email_port"), viper.GetString("email_username"), viper.GetString("email_password"))
 
-	conn, err := tls.Dial("tcp", fmt.Sprintf("%s:%d", viper.GetString("email_smtp"), viper.GetInt("email_port")), tlsconfig)
-	if err != nil {
-		return err
-	}
-
-	client, err := smtp.NewClient(conn, viper.GetString("email_smtp"))
-	if err != nil {
-		return err
-	}
-
-	// step 1: Use Auth
-	if err = client.Auth(smtp.PlainAuth("", viper.GetString("email_username"), viper.GetString("email_password"), viper.GetString("email_smtp"))); err != nil {
-		return err
-	}
-
-	// step 2: add all from and to
-	if err = client.Mail(viper.GetString("email")); err != nil {
-		return err
-	}
-	for _, k := range r.to {
-		if err = client.Rcpt(k); err != nil {
-			return err
-		}
-	}
-
-	// Data
-	w, err := client.Data()
-	if err != nil {
-		return err
-	}
-
-	_, err = w.Write([]byte(body))
-	if err != nil {
-		return err
-	}
-
-	err = w.Close()
-	if err != nil {
-		return err
-	}
-
-	client.Quit()
-	return nil
+    return d.DialAndSend(m)
 }

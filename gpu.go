@@ -20,8 +20,9 @@ import (
 	"k8s.io/client-go/tools/remotecommand"
 )
 
-//https://github.com/zalando-incubator/postgres-operator/blob/master/pkg/cluster/exec.go
+var startTime = time.Now()
 
+//https://github.com/zalando-incubator/postgres-operator/blob/master/pkg/cluster/exec.go
 func WatchGpuPods() {
 	podGpus := make(map[types.UID][]string)
 
@@ -34,7 +35,7 @@ func WatchGpuPods() {
 	_, controller := cache.NewInformer(
 		lw,
 		&v1.Pod{},
-		time.Minute*10,
+		time.Hour*6,
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
 				pod, ok := obj.(*v1.Pod)
@@ -92,7 +93,7 @@ func WatchGpuPods() {
 						case val.Type() == model.ValVector:
 							vectorVal := val.(model.Vector)
 							for _, elem := range vectorVal {
-								if elem.Value < 5 {
+								if elem.Value < 2 {
 									alert = true
 								}
 							}
@@ -110,7 +111,9 @@ func WatchGpuPods() {
 										}
 									}
 
-									BotherUsersAboutGpus(userEmails, pod, val.(model.Vector))
+									if time.Now().After(startTime.Add(time.Duration(2)*time.Hour)) {
+										BotherUsersAboutGpus(userEmails, pod, val.(model.Vector))										
+									}
 								} else {
 									log.Printf("No admins found in namespace: %s", pod.Namespace)
 								}
@@ -138,9 +141,10 @@ func WatchGpuPods() {
 }
 
 func BotherUsersAboutGpus(destination []string, pod *v1.Pod, values model.Vector) {
-	//http://www.blog.labouardy.com/sending-html-email-using-go/
-	// r := NewMailRequest([]string{destination}, "Nautilus cluster: GPUs not utilized")
-	r := NewMailRequest([]string{"dmishin@ucsd.edu"}, "Nautilus cluster: GPUs not utilized")
+	destination = append(destination, "Dmitry Mishin <dmishin@ucsd.edu>")
+	destination = append(destination, "John Graham <jjgraham@ucsd.edu>")
+	r := NewMailRequest(destination, "Nautilus cluster: GPUs not utilized")
+	// r := NewMailRequest([]string{"dmishin@ucsd.edu", "jjgraham@ucsd.edu"}, "Nautilus cluster: GPUs not utilized")
 
 	gpusArr := []string{}
 	for _, elem := range values {

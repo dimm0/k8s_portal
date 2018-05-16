@@ -26,10 +26,10 @@
       <tr class="content">
         <td style="padding:10px;">
           <p>
-              Dear Nautilus user {{.users}}<br/>
+              Dear Nautilus admin,<br/>
               The monitoring system found that you are the admin of the namespace <b>{{.pod.Namespace}}</b>, in which POD <b>{{.pod.Name}}</b> is not using the GPU resources efficiently.<br/>
               Please consider using <a href="https://kubernetes.io/docs/concepts/workloads/controllers/jobs-run-to-completion/">JOBS</a> to shutdown the GPU PODs after the computation is done, or shut those down manually.<br/>
-              The usage for your requested GPUs for the last 6 hours was:
+              The usage for requested GPUs for the last 6 hours was:
               <table border="1">
                 <tr>
                   <th>GPU avg usage, 6hr</th>
@@ -45,7 +45,7 @@
               {{end}}
               </table>
           </p>
-          <p><a href="https://prometheus.nautilus.optiputer.net/graph?g0.range_input=12h&g0.tab=0&g0.expr=nvml_gpu_percent{device_uuid=~\"{{.gpusString}}\"}">Usage plot</a></p>
+          <p><a href="https://prometheus.nautilus.optiputer.net/graph?g0.range_input=6h&g0.expr=nvml_gpu_percent%7Bdevice_uuid%3D~%22{{.gpusString}}%22%7D&g0.tab=0">Usage plot</a></p>
         </td>
       </tr>
     </table>

@@ -35,6 +35,12 @@
   version = "v1.0.0"
 
 [[projects]]
+  name = "github.com/go-mail/mail"
+  packages = ["."]
+  revision = "63235f23494bf20d713a585bce40b2a0675c2f77"
+  version = "2.2.0"
+
+[[projects]]
   name = "github.com/gogo/protobuf"
   packages = [
     "proto",
@@ -302,6 +308,12 @@
   version = "v1.0.0"
 
 [[projects]]
+  branch = "v3"
+  name = "gopkg.in/alexcesaro/quotedprintable.v3"
+  packages = ["."]
+  revision = "2caba252f4dc53eaf6b553000885530023f54623"
+
+[[projects]]
   name = "gopkg.in/inf.v0"
   packages = ["."]
   revision = "3887ee99ecf07df5b447e9b00d9c0b2adaa9f3e4"
@@ -515,6 +527,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "d8000937e41ab23aa01df0a5256670defc7f679bc5ad33e46e2107abaf51c62d"
+  inputs-digest = "a5b5db45c4c5682355a16acc74bfc19da2dc00e5729c00161680a47561f0dde7"
   solver-name = "gps-cdcl"
   solver-version = 1
