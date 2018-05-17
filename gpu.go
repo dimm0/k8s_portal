@@ -24,6 +24,7 @@ var startTime = time.Now()
 
 //https://github.com/zalando-incubator/postgres-operator/blob/master/pkg/cluster/exec.go
 func WatchGpuPods() {
+	time.Sleep(10 * time.Minute)
 	podGpus := make(map[types.UID][]string)
 
 	lw := cache.NewListWatchFromClient(
@@ -111,9 +112,7 @@ func WatchGpuPods() {
 										}
 									}
 
-									if time.Now().After(startTime.Add(time.Duration(2)*time.Hour)) {
-										BotherUsersAboutGpus(userEmails, pod, val.(model.Vector))										
-									}
+									BotherUsersAboutGpus(userEmails, pod, val.(model.Vector))
 								} else {
 									log.Printf("No admins found in namespace: %s", pod.Namespace)
 								}
