@@ -24,10 +24,10 @@ var startTime = time.Now()
 
 var podGpusCache = make(map[types.UID][]string)
 
+var podBothered = make(map[types.UID][]time.Time)
+
 //https://github.com/zalando-incubator/postgres-operator/blob/master/pkg/cluster/exec.go
 func WatchGpuPods() {
-	time.Sleep(10 * time.Minute)
-
 	lw := cache.NewListWatchFromClient(
 		clientset.Core().RESTClient(),
 		"pods",
@@ -144,7 +144,7 @@ func checkPod(pod *v1.Pod) {
 							}
 						}
 
-						BotherUsersAboutGpus(userEmails, pod, val.(model.Vector))
+						botherUsersAboutGpus(userEmails, pod, val.(model.Vector))
 					} else {
 						log.Printf("No admins found in namespace: %s", pod.Namespace)
 					}
@@ -154,11 +154,13 @@ func checkPod(pod *v1.Pod) {
 	}
 }
 
-func BotherUsersAboutGpus(destination []string, pod *v1.Pod, values model.Vector) {
+func botherUsersAboutGpus(destination []string, pod *v1.Pod, values model.Vector) {
 	destination = append(destination, "Dmitry Mishin <dmishin@ucsd.edu>")
 	destination = append(destination, "John Graham <jjgraham@ucsd.edu>")
 	r := NewMailRequest(destination, "Nautilus cluster: GPUs not utilized")
 	// r := NewMailRequest([]string{"dmishin@ucsd.edu", "jjgraham@ucsd.edu"}, "Nautilus cluster: GPUs not utilized")
+
+	log.Printf("Bothering %s", destination)
 
 	gpusArr := []string{}
 	for _, elem := range values {
