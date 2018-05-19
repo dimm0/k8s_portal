@@ -24,10 +24,40 @@ var startTime = time.Now()
 
 var podGpusCache = make(map[types.UID][]string)
 
-var podBothered = make(map[types.UID][]time.Time)
+var podBothered = make(map[string]string)
+
+var botherSampling = 6 * time.Hour
 
 //https://github.com/zalando-incubator/postgres-operator/blob/master/pkg/cluster/exec.go
 func WatchGpuPods() {
+
+	if confMap, err := clientset.Core().ConfigMaps("kube-system").Get("pod-bothered", metav1.GetOptions{}); err == nil {
+		podBothered = confMap.Data
+	} else {
+		log.Printf("Error reading the config pod-bothered: %s", err.Error())
+	}
+
+	go func() {
+		for range time.Tick(time.Minute) {
+			if confMap, err := clientset.Core().ConfigMaps("kube-system").Get("pod-bothered", metav1.GetOptions{}); err == nil {
+				confMap.Data = podBothered
+				if _, err := clientset.Core().ConfigMaps("kube-system").Update(confMap); err != nil {
+					log.Printf("Error updating confMap for podsBothered: %s", err.Error())
+				}
+			} else {
+				if _, err := clientset.Core().ConfigMaps("kube-system").Create(&v1.ConfigMap{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "pod-bothered",
+					},
+					Data: podBothered,
+				}); err != nil {
+					log.Printf("Error submiting confMap for podsBothered: %s", err.Error())
+				}
+			}
+
+		}
+	}()
+
 	lw := cache.NewListWatchFromClient(
 		clientset.Core().RESTClient(),
 		"pods",
@@ -37,16 +67,12 @@ func WatchGpuPods() {
 	_, controller := cache.NewInformer(
 		lw,
 		&v1.Pod{},
-		time.Hour*6,
+		botherSampling,
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
 				pod, ok := obj.(*v1.Pod)
 				if !ok {
 					log.Printf("Expected Pod but other received %#v", obj)
-					return
-				}
-
-				if pod.Status.Phase != v1.PodRunning || pod.Status.StartTime.UTC().After(time.Now().Add(time.Duration(-6)*time.Hour)) {
 					return
 				}
 
@@ -60,14 +86,12 @@ func WatchGpuPods() {
 					return
 				}
 				delete(podGpusCache, pod.UID)
+				delete(podBothered, string(pod.UID))
 			},
 			UpdateFunc: func(oldObj, newObj interface{}) {
 				pod, ok := newObj.(*v1.Pod)
 				if !ok {
 					log.Printf("Expected Pod but other received %#v", newObj)
-					return
-				}
-				if pod.Status.Phase != v1.PodRunning || pod.Status.StartTime.UTC().After(time.Now().Add(time.Duration(-6)*time.Hour)) {
 					return
 				}
 
@@ -84,6 +108,20 @@ func WatchGpuPods() {
 }
 
 func checkPod(pod *v1.Pod) {
+	if pod.Status.Phase != v1.PodRunning || pod.Status.StartTime.UTC().After(time.Now().Add(time.Duration(-botherSampling))) {
+		return
+	}
+
+	if botheredTimeStr, ok := podBothered[string(pod.UID)]; ok {
+		var botheredTime time.Time
+		if err := botheredTime.UnmarshalText([]byte(botheredTimeStr)); err == nil {
+			if botheredTime.After(time.Now().Add(time.Duration(-botherSampling + time.Minute))) {
+				log.Printf("Not bothering %s too soon", pod.Name)
+				return
+			}
+		}
+	}
+
 	for _, cont := range pod.Spec.Containers {
 		res := cont.Resources.Requests["nvidia.com/gpu"]
 		if !res.IsZero() {
@@ -155,12 +193,19 @@ func checkPod(pod *v1.Pod) {
 }
 
 func botherUsersAboutGpus(destination []string, pod *v1.Pod, values model.Vector) {
+	if botherTimeBytes, err := time.Now().MarshalText(); err == nil {
+		podBothered[string(pod.UID)] = fmt.Sprintf("%s", botherTimeBytes)
+	}
 	destination = append(destination, "Dmitry Mishin <dmishin@ucsd.edu>")
 	destination = append(destination, "John Graham <jjgraham@ucsd.edu>")
 	r := NewMailRequest(destination, "Nautilus cluster: GPUs not utilized")
 	// r := NewMailRequest([]string{"dmishin@ucsd.edu", "jjgraham@ucsd.edu"}, "Nautilus cluster: GPUs not utilized")
 
 	log.Printf("Bothering %s", destination)
+
+	if true {
+		return
+	}
 
 	gpusArr := []string{}
 	for _, elem := range values {

@@ -51,7 +51,7 @@ metadata:
     kubernetes.io/ingress.class: traefik
 spec:
   rules:
-  - host: devportal.k8s.optiputer.net
+  - host: devportal.nautilus.optiputer.net
     http:
       paths:
       - path: /
