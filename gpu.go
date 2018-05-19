@@ -203,10 +203,6 @@ func botherUsersAboutGpus(destination []string, pod *v1.Pod, values model.Vector
 
 	log.Printf("Bothering %s", destination)
 
-	if true {
-		return
-	}
-
 	gpusArr := []string{}
 	for _, elem := range values {
 		gpusArr = append(gpusArr, fmt.Sprintf("%s", elem.Metric["device_uuid"]))
