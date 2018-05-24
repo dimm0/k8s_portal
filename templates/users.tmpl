@@ -1,42 +1,24 @@
 {{define "body"}}
-  <div class="container">
+  <div style="padding: 15px">
     <a href="mailto:{{.MailtoAll}}">Email all</a>
 
-    <table class="table table-striped">
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Name</th>
-            <th>IDP</th>
-            <th>Email</th>
-            <th>Role</th>
-            <th>Validate</th>
-          </tr>
-        </thead>
-        <tbody>
-          {{range .Users}}
-          <tr>
-            <td>{{.Spec.UserID}}</td>
-            <td>{{.Spec.Name}}</td>
-            <td>{{.Spec.IDP}}</td>
-            <td><a href="mailto:{{.Spec.Email}}">{{.Spec.Email}}</a></td>
-            <td id="{{.Name}}_role">{{.Spec.Role}}</td>
-            <td id="{{.Name}}_modif">
-              {{if eq .Spec.Role "guest"}}
-                <a class="btn btn-outline-primary" href="JavaScript:verifyUser('{{.Name}}', '{{.Spec.UserID}}', true)">Validate</a>
-              {{end}}
-              {{if eq .Spec.Role "user"}}
-                <a class="btn btn-outline-primary" href="JavaScript:verifyUser('{{.Name}}', '{{.Spec.UserID}}', false)">Unvalidate</a>
-              {{end}}
-            </td>
-          </tr>
-          {{end}}
-        </tbody>
-      </table>
+    <div id="jsGrid"></div>
   </div>
 {{end}}
 
+{{define "page_css"}}
+  <link type="text/css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jsgrid/1.5.3/jsgrid.min.css" />
+  <link type="text/css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jsgrid/1.5.3/jsgrid-theme.min.css" />
+{{end}}
+
 {{define "page_js"}}
+<!--
+apk add nodejs
+npm config set unsafe-perm true
+npm install -g grunt-cli
+grunt
+-->
+  <script type="text/javascript" src="media/jsgrid.min.js"></script>
   <script language="JavaScript">
     function verifyUser(username, userid, isValid) {
       $.ajax({
@@ -54,5 +36,29 @@
         },
       });
     }
+
+    $("#jsGrid").jsGrid({
+        width: "100%",
+	controller: {
+            loadData: function(filter) {
+		    var d = $.Deferred();
+		    $.ajax({url: "/users", dataType: "json", data: {format: "json", action: "general"}}).done(function(response) {
+			d.resolve(response);
+		    });
+		    return d.promise();
+	    }
+	},
+	autoload: true,
+	sorting: true,
+	selecting: false,
+        fields: [
+            { title: "User ID", name: "spec.UserID", type: "text", width: 60},
+            { title: "Name", name: "spec.Name", type: "text", sorter: "string", width: 30 },
+            { title: "IDP", name: "spec.IDP", type: "text", width: 30 },
+            { title: "Email", name: "spec.Email", type: "text", width: 45 },
+            { title: "Role", name: "spec.Role", type: "text", width: 5 },
+            { title: "Validate", type: "checkbox", width: 10},
+        ]
+    });
   </script>
 {{end}}

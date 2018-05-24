@@ -74,7 +74,7 @@ function delns(ns) {
 function viewns(ns) {
   $.ajax({
     url: '/users',
-    data: { format: "json", namespace: ns },
+    data: { format: "json", action: "namespace", namespace: ns },
     dataType: "json",
     success: function(result, textStatus, xhr){
 

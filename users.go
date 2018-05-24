@@ -65,7 +65,8 @@ func UsersHandler(w http.ResponseWriter, r *http.Request) {
 	case "GET":
 		if r.URL.Query().Get("format") == "json" {
 
-			if r.URL.Query().Get("action") == "autocomplete" {
+			switch r.URL.Query().Get("action") {
+			case "autocomplete":
 				term := r.URL.Query().Get("term")
 				if term == "" {
 					w.WriteHeader(http.StatusInternalServerError)
@@ -94,7 +95,24 @@ func UsersHandler(w http.ResponseWriter, r *http.Request) {
 					w.Write([]byte(fmt.Sprintf("Error getting users: %s", err.Error())))
 					return
 				}
-			} else { // namespace users for admin profile interface
+			case "general":
+				users := []nautilusapi.PRPUser{}
+				if curusers, err := crdclient.List(meta_v1.ListOptions{}); err == nil {
+					users = curusers.Items
+					if usersJson, err := json.Marshal(users); err == nil {
+						w.Write(usersJson)
+						return
+					} else {
+						w.WriteHeader(http.StatusInternalServerError)
+						w.Write([]byte(fmt.Sprintf("Error getting users: %s", err.Error())))
+						return
+					}
+				} else {
+					w.WriteHeader(http.StatusInternalServerError)
+					w.Write([]byte(fmt.Sprintf("Error getting users: %s", err.Error())))
+					return
+				}
+			case "namespace":
 				if r.URL.Query().Get("namespace") == "" {
 					w.WriteHeader(http.StatusBadRequest)
 					w.Write([]byte("Not enough params"))
