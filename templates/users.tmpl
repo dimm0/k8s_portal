@@ -20,16 +20,16 @@ grunt
 -->
   <script type="text/javascript" src="media/jsgrid.min.js"></script>
   <script language="JavaScript">
-    function verifyUser(username, userid, isValid) {
+    function verifyUser(userid, isValid) {
       $.ajax({
         url: "/users",
         type: "POST",
         data: { user: userid, action: isValid?"validate":"unvalidate" },
         success: function(result){
-          $("#"+username+"_role").html(result);
-          var newButton = '<a class="btn btn-outline-primary" href="JavaScript:verifyUser(\''+username+'\', \''+userid+'\', '+!isValid+')">'+(isValid?'Unvalidate':'Validate')+'</a>';
-          console.debug(newButton);
-          $("#"+username+"_modif").html(newButton);
+	  $("#jsGrid").jsGrid("loadData").done(function () {
+            var sorting = $("#jsGrid").jsGrid("getSorting");
+            $("#jsGrid").jsGrid("sort", sorting);
+          });
         },
         error: function(xhr, text){
           vex.dialog.alert(xhr.responseText)
@@ -52,13 +52,21 @@ grunt
 	sorting: true,
 	selecting: false,
         fields: [
-            { title: "User ID", name: "spec.UserID", type: "text", width: 60},
             { title: "Name", name: "spec.Name", type: "text", sorter: "string", width: 30 },
+            { title: "User ID", name: "spec.UserID", type: "text", width: 60},
             { title: "IDP", name: "spec.IDP", type: "text", width: 30 },
             { title: "Email", name: "spec.Email", type: "text", width: 45 },
-            { title: "Role", name: "spec.Role", type: "text", width: 5 },
-            { title: "Validate", type: "checkbox", width: 10},
+            { title: "Role", name: "spec.Role", type: "text", width: 3 },
+            { title: "Validate", name: "spec.Role", width: 8, sorting: false, itemTemplate: function(value, item) {
+               return $("<a>")
+	         .addClass("btn btn-sm btn-outline-primary")
+	         .attr("href", "JavaScript:verifyUser('"+item.spec.UserID+"', "+(item.spec.Role == "guest")+")")
+		 .append((item.spec.Role == "guest")?"Validate":"Unvalidate");
+	    }},
         ]
+    });
+    $("#jsGrid").jsGrid("loadData").done(function() {
+    	$("#jsGrid").jsGrid("sort", 0);
     });
   </script>
 {{end}}
