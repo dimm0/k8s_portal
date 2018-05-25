@@ -11,6 +11,7 @@ import (
 
 	nautilusapi "github.com/dimm0/k8s_portal/pkg/apis/optiputer.net/v1alpha1"
 
+	"k8s.io/api/core/v1"
 	"k8s.io/api/extensions/v1beta1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -193,9 +194,10 @@ func SetupSecurity() error {
 					v1beta1.PersistentVolumeClaim,
 					v1beta1.GitRepo,
 				},
-				HostNetwork: false,
-				HostIPC:     false,
-				HostPID:     false,
+				AllowedCapabilities: []v1.Capability{"NET_ADMIN"},
+				HostNetwork:         false,
+				HostIPC:             false,
+				HostPID:             false,
 				HostPorts: []v1beta1.HostPortRange{
 					{
 						Min: 1024,
