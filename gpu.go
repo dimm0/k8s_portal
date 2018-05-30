@@ -171,9 +171,23 @@ func checkPod(pod *v1.Pod) {
 			}
 
 			if alert {
+				userEmails := []string{}
 				if userBindings, err := clientset.Rbac().RoleBindings(pod.Namespace).Get("nautilus-admin", metav1.GetOptions{}); err == nil {
 					if len(userBindings.Subjects) > 0 {
-						userEmails := []string{}
+						for _, userBinding := range userBindings.Subjects {
+							if user, err := GetUser(userBinding.Name); err == nil {
+								userEmails = append(userEmails, fmt.Sprintf("%s <%s>", user.Spec.Name, user.Spec.Email))
+							} else {
+								log.Printf("Error getting admins to send emails: %s", err.Error())
+							}
+						}
+
+					} else {
+						log.Printf("No admins found in namespace: %s", pod.Namespace)
+					}
+				}
+				if userBindings, err := clientset.Rbac().RoleBindings(pod.Namespace).Get("nautilus-user", metav1.GetOptions{}); err == nil {
+					if len(userBindings.Subjects) > 0 {
 						for _, userBinding := range userBindings.Subjects {
 							if user, err := GetUser(userBinding.Name); err == nil {
 								userEmails = append(userEmails, fmt.Sprintf("%s <%s>", user.Spec.Name, user.Spec.Email))
@@ -182,10 +196,12 @@ func checkPod(pod *v1.Pod) {
 							}
 						}
 
-						botherUsersAboutGpus(userEmails, pod, val.(model.Vector))
 					} else {
-						log.Printf("No admins found in namespace: %s", pod.Namespace)
+						log.Printf("No users found in namespace: %s", pod.Namespace)
 					}
+				}
+				if len(userEmails) > 0 {
+					botherUsersAboutGpus(userEmails, pod, val.(model.Vector))
 				}
 			}
 		}
